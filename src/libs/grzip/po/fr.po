@@ -1,0 +1,294 @@
+# GRZIP NLS file for French language
+# Copyright (C) 2007 Jean-Pierre Demailly
+# This file is distributed under the same license as the grzip package.
+# Jean-Pierre Demailly <demailly@fourier.ujf-grenoble.fr>, 2007.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: grzip 0.3.0\n"
+"Report-Msgid-Bugs-To: <demailly@fourier.ujf-grenoble.fr>\n"
+"POT-Creation-Date: 2007-01-06 9:59+0200\n"
+"PO-Revision-Date: 2007-01-06 10:41+0100\n"
+"Last-Translator: Jean-Pierre Demailly <demailly@fourier.ujf-grenoble.fr>\n"
+"Language-Team:  French\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8-bit\n"
+
+#: main.c:63
+#, c-format
+msgid "Usage: grzip <Switches> InputFile(s)\n\n"
+msgstr "Usage: grzip <Options> Liste_de_fichiers\n\n"
+
+#: main.c:64
+#, c-format
+msgid "Switches:\n"
+msgstr "Options:\n"
+
+#: main.c:65
+#, c-format
+msgid "  -i       All further args are input files\n"
+msgstr "  -i       Tous les arguments suivants sont des fichiers à (dé)compresser\n"
+
+#: main.c:66
+#, c-format
+msgid "  -f       Force overwrite of output file\n"
+msgstr "  -f       Forcer l'écrasement du fichier de sortie\n"
+
+#: main.c:66
+#, c-format
+msgid "  -k       Keep input file after operation\n"
+msgstr "  -k       Conserver le fichier sur lequel grzip a opéré après exécution\n"
+
+#: main.c:66
+#, c-format
+msgid "  -r       Remove input file after operation\n"
+msgstr "  -r       Effacer le fichier sur lequel grzip a opéré après exécution\n"
+
+#: main.c:67
+#, c-format
+msgid "  -b<size> Maximum block size (e.g. -b1m, -b1024k)\n"
+msgstr "  -b<taille> Taille maximale du bloc de travail (exemples: -b1m, -b1024k)\n"
+
+#: main.c:68
+#, c-format
+msgid "           (default -b5m or -b5120k, maximum -b8m)\n"
+msgstr "           (par défaut -b5m ou -b5120k, maximum -b8m)\n"
+
+#: main.c:69
+#, c-format
+msgid "  -c       Use stdout as output\n"
+msgstr "  -c       Utiliser le tampon  stdout  en sortie\n"
+
+#: main.c:70
+#, c-format
+msgid "  -d       Decompression (compression is default)\n"
+msgstr "  -d       Effectuer une décompression (compression par défaut)\n"
+
+#: main.c:70
+#, c-format
+msgid "           equivalent to using 'grunzip' instead of 'grzip'\n"
+msgstr "           équivaut à utiliser 'grunzip' au lieu de 'grzip'\n"
+
+#: main.c:70
+#, c-format
+msgid "  -z       Compression (this is the default)\n"
+msgstr "  -z       Effectuer une compression (choix par défaut)\n"
+
+#: main.c:70
+#, c-format
+msgid "  -o<outf> Name of output file\n"
+msgstr "  -o<sortie> Nom du fichier de sortie\n"
+
+
+#: main.c:71
+#, c-format
+msgid "  -m<mode> Compression algorithms, default: -m1\n"
+msgstr "  -m<mode>   Algorithme de compression, défaut: -m1\n"
+
+#: main.c:72
+#, c-format
+msgid "           -m1 LZP + BWT + WFC + EC\n"
+msgstr "           -m1 LZP + BWT + WFC + EC\n"
+
+#: main.c:73
+#, c-format
+msgid "           -m2 LZP + BWT + MTF + EC\n"
+msgstr "           -m2 LZP + BWT + MTF + EC\n"
+
+#: main.c:74
+#, c-format
+msgid "           -m3 LZP + ST4 + WFC + EC\n"
+msgstr "           -m3 LZP + ST4 + WFC + EC\n"
+
+#: main.c:75
+#, c-format
+msgid "           -m4 LZP + ST4 + MTF + EC\n"
+msgstr "           -m4 LZP + ST4 + MTF + EC\n"
+
+#: main.c:76
+#, c-format
+msgid "  -L<size> LZP Hash table size [10-18], 4*2^Size bytes, default: -L15\n"
+msgstr "  -L<taille> table de hachage LZP [10-18], 4*2^Taille Octets, défaut: -L15\n"
+
+#: main.c:77
+#, c-format
+msgid "  -M<size> LZP Minimum Matched Len [2,5,8...,47], default: -M32\n"
+msgstr "  -M<taille> longueur de correspondance LZP minimale [2,5,8...,47], défaut: -M32\n"
+
+#: main.c:78
+#, c-format
+msgid "  -S       Use alternative BWT Sorting algorithm\n"
+msgstr "  -S       Utiliser un algorithme de tri BWT alternatif\n"
+
+#: main.c:79
+#, c-format
+msgid "           (faster for repetitive blocks)\n"
+msgstr "           (plus rapide pour des données comportant des blocs répétitifs)\n"
+
+#: main.c:80
+#, c-format
+msgid "  -D       Enable Delta filter\n"
+msgstr "  -D       Activer le filtre Delta\n"
+
+#: main.c:81
+#, c-format
+msgid "  -a       Enable Adaptative block size reduction\n"
+msgstr "  -a       Activer la réduction adaptative de taille de bloc\n"
+
+#: main.c:82
+#, c-format
+msgid "  -l       Disable LZP preprocessing\n"
+msgstr "  -l       Désactiver le prétraitement LZP\n"
+
+#: main.c:83
+#, c-format
+msgid "  -p       Disable all Preprocessing techniques\n"
+msgstr "  -p       Désactiver toutes les techniques de prétraitement\n"
+
+#: main.c:84
+#, c-format
+msgid "  -q       Run quietly/silently\n"
+msgstr "  -q       Passer en mode silencieux\n"
+
+#: main.c:84
+#, c-format
+msgid "  -v       Set verbose mode\n"
+msgstr "  -v       Passer en mode verbeux\n"
+
+#: main.c:85
+#, c-format
+msgid "  -V       Show version\n"
+msgstr "  -V       Afficher le numéro de version\n"
+
+#: main.c:86
+#, c-format
+msgid "  -h       Show all Switches\n"
+msgstr "  -h       Afficher toutes les options\n"
+
+#: main.c:92
+#, c-format
+msgid "This is grzip, yet another BSLDCA compressor. Version 0.3.0, 31-Jan-2007.\n"
+msgstr "Ceci est grzip, encore un autre compresseur BSLDCA. Version 0.3.0, 31/01/2007.\n"
+
+#: main.c:93
+#, c-format
+msgid "Copyright (c) 2002-2004 by Grebnov Ilya <Ilya.Grebnov@magicssoft.ru>.\n"
+msgstr "Copyright (c) 2002-2004 Grebnov Ilya <Ilya.Grebnov@magicssoft.ru>.\n"
+
+#: main.c:94
+#, c-format
+msgid "Enhanced version by <Jean-Pierre.Demailly@ujf-grenoble.fr>, Jan 2007.\n\n"
+msgstr "Version adaptée par <Jean-Pierre.Demailly@ujf-grenoble.fr>, Janvier 2007.\n\n"
+
+#: main.c:247
+#, c-format
+msgid "grzip: input file %s has suffix .grz\n"
+msgstr "grzip: le fichier spécifié  %s  a le suffixe .grz\n"
+
+#: main.c:248
+#, c-format
+msgid "Will not try to compress it !!\n\n"
+msgstr "Abandon de la compression !!\n\n"
+
+#: main.c:255 main.c:400
+#, c-format
+msgid "grzip: cannot open input file %s!\n"
+msgstr "grzip: impossible d'ouvrir le fichier spécifié  %s!\n"
+
+#: main.c:261 main.c:406
+#, c-format
+msgid "grzip: %s is not a regular file. Ignored\n"
+msgstr "grzip: %s n'est pas un fichier normal. Abandon\n"
+
+#: main.c:273
+#, c-format
+msgid "grzip: available memory seems to be exhausted !!\n"
+msgstr "grzip: la mémoire disponible semble épuisée !!\n"
+
+#: main.c:282
+#, c-format
+msgid "File %s already exists.\n"
+msgstr "Le fichier  %s  existe déjà.\n"
+
+#: main.c:283 main.c:429
+#, c-format
+msgid "Use -f option to force overwriting\n"
+msgstr "Utiliser l'option -f pour forcer l'écrasement\n"
+
+#: main.c:293
+#, c-format
+msgid "Cannot create output file %s!\n"
+msgstr "Impossible de créer le fichier  %s  en sortie !\n"
+
+#: main.c:305 main.c:312 main.c:319 main.c:463 main.c:470 main.c:476
+#, c-format
+msgid "grzip: IO error on file %s!\n"
+msgstr "grzip: erreur d'Entrée/Sortie sur le fichier  %s!\n"
+
+#: main.c:327
+#, c-format
+msgid "grzip: not enough memory!\n"
+msgstr "grzip: pas assez de mémoire !\n"
+
+#: main.c:346
+#, c-format
+msgid "Compressing %.55s (%02d%%)"
+msgstr "Compression %.55s (%02d%%)"
+
+#: main.c:371
+#, c-format
+msgid "Compressed %ld Bytes into %ld Bytes in %.3f seconds.\n"
+msgstr "Comprimé  %ld Octets  en  %ld Octets  en %.3f secondes.\n"
+
+#: main.c:392
+#, c-format
+msgid "grzip: input file %s does not have suffix .grz\n"
+msgstr "grzip: le fichier spécifié %s n'a pas le suffixe .grz\n"
+
+#: main.c:393
+#, c-format
+msgid "Will not try to decompress it !!\n"
+msgstr "Abandon de la décompression !!\n"
+
+#: main.c:428
+#, c-format
+msgid "grzip: file %s already exists.\n"
+msgstr "grzip: le fichier  %s  existe déjà.\n"
+
+#: main.c:439
+#, c-format
+msgid "grzip: cannot create output file %s!\n"
+msgstr "grzip: impossible de créer le fichier de sortie  %s!\n"
+
+#: main.c:449 main.c:456
+#, c-format
+msgid "This is not a grzip archive!\n"
+msgstr "Ce n'est pas une archive grzip !\n"
+
+#: main.c:488
+#, c-format
+msgid "Decompressing %.55s (%02d%%)"
+msgstr "Décompression %.55s (%02d%%)"
+
+#: main.c:495
+#, c-format
+msgid "grzip: unexpected end of file %s!\n"
+msgstr "grzip: fin du fichier  %s  inattendue !\n"
+
+#: main.c:502 main.c:545
+#, c-format
+msgid "grzip: CRC check failed!\n"
+msgstr "grzip: la vérification de CRC a échoué !\n"
+
+#: main.c:562
+#, c-format
+msgid "Decompressed %ld Bytes into %ld Bytes in %.3f seconds.\n"
+msgstr "Décomprimé  %ld Octets  en  %ld Octets  en %.3f secondes.\n"
+
+#: main.c:612
+#, c-format
+msgid "grzip: cannot use <stdout> as output with several input files !!\n"
+msgstr "grzip: impossible d'utiliser <stdout> en sortie avec plusieurs fichiers en entrée !!\n"
+

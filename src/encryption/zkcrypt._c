@@ -1,0 +1,26 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdint.h>
+
+#define ECRYPT_API
+#define ECRYPT_ctx              zkcrypt_ECRYPT_ctx
+#define ECRYPT_init             zkcrypt_ECRYPT_init
+#define ECRYPT_keysetup         zkcrypt_ECRYPT_keysetup
+#define ECRYPT_ivsetup          zkcrypt_ECRYPT_ivsetup
+#define ECRYPT_process_bytes    zkcrypt_ECRYPT_process_bytes
+//#define ECRYPT_decrypt_bytes    zkcrypt_ECRYPT_decrypt_bytes
+//#define ECRYPT_encrypt_bytes    zkcrypt_ECRYPT_encrypt_bytes
+#define ECRYPT_keystream_bytes  zkcrypt_ECRYPT_keystream_bytes
+#define ECRYPT_process_packet   zkcrypt_ECRYPT_process_packet
+//#define ECRYPT_encrypt_packet   zkcrypt_ECRYPT_encrypt_packet
+//#define ECRYPT_decrypt_packet   zkcrypt_ECRYPT_decrypt_packet
+#define ECRYPT_process_blocks   zkcrypt_ECRYPT_process_blocks
+//#define ECRYPT_encrypt_blocks   zkcrypt_ECRYPT_encrypt_blocks
+//#define ECRYPT_decrypt_blocks   zkcrypt_ECRYPT_decrypt_blocks
+//#define ECRYPT_keystream_blocks zkcrypt_ECRYPT_keystream_blocks
+
+#include "../libs/ecrypt/submissions/zk-crypt/v3/zk-crypt-v3.c"
+
+#include "ecrypt.h"
+ECRYPT_FUNCTION(zkcrypt_ECRYPT)

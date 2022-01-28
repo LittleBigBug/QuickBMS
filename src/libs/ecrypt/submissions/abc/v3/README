@@ -1,0 +1,67 @@
+
+    ABC STREAM CIPHER VERSION 3
+    C REFERENCE IMPLEMENTATION FOR ESTREAM PERFORMANCE TESTING FRAMEWORK
+
+PROJECT STRUCTURE
+
+    Folders and files in main project tree are organized as follows:
+
+    README            - this file
+    Makefile          - Makefile
+    ecrypt-sync.h     - ECRYPT interface declarations
+    abc.h             - declarations of ABC constants
+    abc-tables.h      - predefined optimization tables
+    abc.c             - core ABC routines
+
+VARYING IMPLEMENTATION PARAMETERS
+
+    Implementation memory consumption and therefore speed can be varied at
+    compile time by ECRYPT_VARIANT parameter. Specifically, ECRYPT_VARIANT
+    controls optimization window size and cycle unroll depth in ABC core
+    code. Possible values for ECRYPT_VARIANT are defined in the table below.
+
+    ECRYPT_VARIANT   Window size    Unroll depth
+    1                12-12-8        16
+    2                8              16
+    3                8              8
+    4                8              4
+    5                4              16
+    6                4              8
+    7                4              4
+    8                2              8
+    9                2              4
+    10               1              4
+
+LEGAL NOTICE
+
+    The ABC stream cipher is copyright (C) Vladimir Anashin, Andrey
+    Bogdanov and Ilya Kizhvatov.
+
+    The authors allow free usage of the ABC stream cipher design for any
+    non-commercial or commercial purposes provided each of the following
+    holds:
+
+    1. The original ABC stream cipher design is not modified in any way.
+
+    2. The name "ABC stream cipher" is clearly specified.
+
+    3. The names of the ABC stream cipher inventors (Vladimir Anashin, Andrey
+       Bogdanov, Ilya Kizhvatov) are clearly specified.
+
+    ABC reference implementation is provided "as is" without any express or
+    implied warranty. The authors are not in any way liable for any use of
+    this software.
+
+CONTACT
+
+    Vladimir Anashin, Ilya Kizhvatov
+      {anashin, ilya.kizhvatov}@rsuh.ru
+      Faculty of Information Security
+      Institute for Information Sciences and Security Technologies
+      Russian State University for the Humanities
+      Kirovogradskaya Str. 25/2, 117534 Moscow, Russia
+
+    Andrey Bogdanov
+      abogdanov@escrypt.com
+      escrypt GmbH - Embedded Security
+      Lise-Meitner-Allee 4, D-44801 Bochum, Germany

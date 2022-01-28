@@ -1,0 +1,136 @@
+#!/bin/sh
+
+[ -z "$BASH_VERSION" ] && (which bash > /dev/null 2>&1) && exec bash $0 $*;
+
+# -----------------------------------------------------------------------------
+
+root=$(cd $(dirname $(which "$0"))/.. && pwd);
+
+. $root/scripts/tools.sh;
+
+# -----------------------------------------------------------------------------
+
+reports="$root/reports-$HOSTNAME";
+
+make_header ()
+{
+cat <<EOF
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+    "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <title>$1</title>
+  <link href="$2" rel="stylesheet" type="text/css"/>
+</head>
+<body>
+  <table>
+    <tr class='header'>
+      <th>Primitive</th>
+      <th>Profile</th>
+      <th>Key</th>
+      <th>IV</th>
+      <th>MAC</th>
+      <th>Stream</th>
+      <th>40 bytes</th>
+      <th>576 bytes</th>
+      <th>1500 bytes</th>
+      <th>Imix</th>
+      <th>Agility</th>
+      <th>Key setup</th>
+      <th>IV setup</th>
+      <th>Variant</th>
+      <th>Compiler</th>
+    </tr>
+EOF
+}
+
+make_footer ()
+{
+cat <<EOF
+  </table>
+</body>
+EOF
+}
+
+find_css ()
+{
+    css="results.css";
+
+    while [ "$PWD" != "/" ] && [ ! -r "results.css" ]; do
+	cd ..;
+	css="../$css";
+    done
+
+    echo "$css";
+}
+
+# -----------------------------------------------------------------------------
+
+dir=$1;
+
+[ -n "$dir" ] || dir=.;
+
+collect ()
+{
+    dir=$1;
+
+    status 1 "collecting results";
+
+    rm -f index.html;    
+    cp "$root/scripts/results.css" .;
+    make_header "Results" $(find_css) > summary.html;
+    
+    find $dir -type d | while read dir; do
+	(
+	    cd "$dir";
+	    
+	    [ -e fastest ] || exit;
+	    
+	    make_header "Results" $(find_css) > index.html;
+
+	    for sortby in stream; do
+		keysizes="";
+		"$root/scripts/tabulate" -v sort=$sortby \
+		    $(find * -name 'speed_*') | sort -n | while read line; do
+		    echo ${line#*;} >> index.html;
+		    
+		    keysize=${line%%;*};
+		    keysize=${keysize#* };
+		    
+		    if ! expr "$keysizes" : ".*$keysize.*" &> /dev/null; then
+			echo "    ${line//href=\'/href=\'$dir/}";
+			keysizes="$keysizes $keysize";
+		    fi
+		done
+	    done
+	    
+	    make_footer >> index.html;
+	)
+    done | sort -n | while read line; do
+	if expr "$line" : ".*/benchmarks/" &> /dev/null; then
+	    line=${line/"<tr>"/"<tr class='benchmark'>"};
+	fi
+	
+	echo "    ${line#*;}" >> summary.html;
+	
+	config=$(echo $line | sed 's/^.*<a[^<]*speed[^<]*>\([^<]*\)<.*$/\1/');
+	awk '/^tag/ { print $3; exit; }' "$reports/configs/$config.mk";
+
+    done | sort | uniq -c | sort -rn;
+
+    make_footer >> summary.html;
+
+    if [ -e index.html ]; then
+	rm summary.html;
+    else
+	mv summary.html index.html;
+    fi
+
+    status 1;
+}
+
+shortlist=$(collect "$dir");
+
+answer=$(ask 1 "Should I update the shortlist? [Y/n]" "Y");
+
+[ "$answer" = "n" ] || echo "$shortlist" > "$reports/shortlist";

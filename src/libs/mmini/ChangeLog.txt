@@ -1,0 +1,7 @@
+--------------
+CHANGE LOG
+--------------
+
+Version 0.5:
+ * PRE-RELEASE, DO NOT USE (yet).
+

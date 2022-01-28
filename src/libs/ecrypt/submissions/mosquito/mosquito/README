@@ -1,0 +1,66 @@
+Submission to ECRYPT call for stream cipher primitives
+
+Self-synchronizing stream cipher Mosquito by Joan Daemen and Paris Kitsos
+
+This submission includes the following files:
+Mosquito_ECRYPT_Cover.pdf: required item A
+Mosquito_ecrypt.pdf:       required item B
+Mosquito_ECRYPT_IP.pdf:    required item D
+ecrypt-Mosquito_cipher.c:  part of required item C, contains reference code
+ecrypt-ssyn.h:  part of required item C, header file of reference code
+main.c:                    part of required item C, contains program to generate testvalues
+testvalues_2.txt:          part of required item C, contains testvalues
+testval_in.txt:            part of required item C, contains input file to generate testvalues
+readme.txt:                this file
+
+
+On the reference code
+
+Mosquito has an internal state and this is kept in a structure ECRYPT_ctx specified in the file "ecrypt-ssyn.h"
+When a new instance of this structure is created, one shall perform an initialization by calling the function "void init_ctx(ECRYPT_ctx *s)".
+
+Correction: 
+
+In the submission version, some bits of the internal state were never initialized. This has now been corrected in "ecrypt-Mosquito_cipher.c" in the function "void init_ctx(ECRYPT_ctx *s)"
+New testvalues are provided in the file "testvalues_2.txt
+
+On the representation of testvalues
+
+Mosquito operates on single bits. Still, we use a byte-oriented notation in these files. The bit that appears first is the bit with the lowest (time)-index. 
+- keys have a length of 12 bytes,
+- IV values have a length of 13 bytes,
+- plaintext and ciphertext both have a length of 16 bytes.
+
+On the range of testvalues
+
+The file "testvalues.txt" contains:
+- 64 ciphertext values corresponding to 4 plaintext values encrypted using 4 different key values and using 4 different IV values.
+- 64 plaintext values corresponding to 4 ciphertext values encrypted using 4 different key values and using 4 different IV values.
+The contents of this file can be regenerated using the main program in "main.c" with as input the file "testval_in.txt".
+
+The key values:
+00 00 00 00 00 00 00 00 00 00 00 00
+FF FF FF FF FF FF FF FF FF FF FF FF
+01 23 45 67 89 AB CD EF 01 23 45 67
+FE DC BA 98 76 54 32 10 FE DC BA 98
+
+The IV values
+00 00 00 00 00 00 00 00 00 00 00 00
+FF FF FF FF FF FF FF FF FF FF FF FF
+01 23 45 67 89 AB CD EF 01 23 45 67
+FE DC BA 98 76 54 32 10 FE DC BA 98
+
+The plaintext values:
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+01 23 45 67 89 AB CD EF 01 23 45 67 89 AB CD EF 
+FE DC BA 98 76 54 32 10 FE DC BA 98 76 54 32 10 
+
+The ciphertext values:
+00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF FF
+01 23 45 67 89 AB CD EF 01 23 45 67 89 AB CD EF 
+FE DC BA 98 76 54 32 10 FE DC BA 98 76 54 32 10 
+
+
+

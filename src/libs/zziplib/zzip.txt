@@ -1,0 +1,180 @@
++-----------------------------------------------------------------------------+
+ Zzip/Zzlib version 0.36c  04-Jun-2001
+ Copyright (c) 2001 Damien Debin, all rights reserved.
+ Yet another block-sorting compressor for Windows 9x/Me/NT/2000 and Unix !
++-----------------------------------------------------------------------------+
+
+Zzip is a new compression utility, still under development, which can compress 
+files with a very high compression ratio. Compared to Winzip 7.0, you can gain, 
+at least, 15 %. This utility uses an algorithm mainly based on the Burrows-
+Wheeler Transform method developped by Mike Burrows and David Wheeler.
+
+Warning : since this software is still in development, different versions are 
+not cross-compatible. It means that a file compressed with zzip may not be
+uncompressed with a different (newer or older) version of zzip.
+
+Note : Zzip _can't_ uncompress pkzip/winzip files (*.zip).
+
+* Zzip usage: 
+  zzip [<command>] [<sw1><sw2>...] [<archive>] file1 file2 ...
+
+  + <commands>
+      a  Add files to archive
+      e  Extract files from archive without pathname
+         (zzip extracts all if no files are specified)
+      x  eXtract files with full pathname
+	     (zzip creates the path if it does not exist)
+      d  Delete files from archive
+      t  Test files in archive
+      l  List contents of archive
+
+  + <switches>
+     -...  Block size (e.g. -3m,-3072k)
+            + block size of 1 Mb : -1m
+            + block size of 2347 kb : -2347k
+     -a    Adaptive block size reduction
+     -mx   MaXimum compression
+     -mm   MultiMedia compression
+     -q    Quiet (no output to screen)
+     -r    Recurse subdirectories when compressing
+     -s    Statistics about (de)compression
+
+  + default switches are : -1m (block size of 1Mb)
+
+  + -mx gives the best compression ratio but compression is 15% slower
+  
+  + -a is useful with binary or tar files, it reduces the block size adaptively
+    to give a better compression ratio, but compression is 5% slower
+
+  + -mm enables a special algorithm for image and wav files, use it only for
+    multimedia files since it can give a worse compression ratio for regular
+    files
+
+  + If you don't specify any command, the default behaviour for Zzip is to 
+    compress, by appending the extension '.zz' to every input file names and
+    compressing them separately.
+
+  + Willcards are allowed for input files.
+
+* Zzip-sfx (only available for Win9x/Me/NT/2000) usage : zzip-sfx archive
+  Zzip-sfx builds a self-extracting archive (exe file) from a zzip archive
+
+* If you want to use Zzip in one of your program you can get a free dll (Zzlib)
+  at Zzip website.
+
+* The source code of Zzip/Zzlib is released under the GNU LGPL, you can 
+  download it at Zzip/Zzlib website.
+
+* If you want further information or if you want to report any bug, please mail
+  me at damien@debin.net or visit Zzip website http://debin.org/zzip/
+
+* History :
+
+  0.36c
+  + bug fixes
+  + unix version doesn't work any more, it will be delayed until I can get 
+    access to a unix machine
+
+  0.36b
+  + source code is released under the GNU LGPL !
+  + a new option '-s' to get stats about the (de)compression (only available 
+    for x86 cpus)
+  + bug fixes (unix version works !)
+
+  0.36a
+  + zzip-sfx, a new utility (only available for Win9x/NT/2000) for building
+    self-extracting archives from zzip archives
+  + a new adaptive block size reduction algorithm (switch -a)
+  + bug fixes
+  + a new web site ;) http://www.zzip.f2s.com/
+
+  0.35g
+  + bug fixes
+
+  0.35f
+  + compression and uncompression are somewhat faster (5% I think for regular 
+    processors)
+  + a new filter for text files (phrase replacement) has been implemented
+  + better detection of multimedia files
+  + bug fixes
+
+  0.35e
+  + compression is 5% faster, uncompression is 20% faster
+  + the three algorithms have been merged into a single, please use now '-mx' 
+    to get the best compression ratio
+  + memory footprint has been reduced, the new memory usage is :
+    - 6*block_size during compression
+    - 5*block_size during uncompression
+  + the range of block size has been enlarged up to 20*256kb=5mb (-b20)
+  + a new switch (-mm) enables a new algorithm for images and wav files
+
+  0.35d
+  + a lot of functions have been added to the dll to manipulate archives
+  + you can specify now which files you want to extract
+
+  0.35c
+  + zzip has been turned into a dll, so that you can use now zzip as a command
+    line software or as a library in your program
+  + compression/uncompression is slightly faster
+
+  0.35b
+  + the compression ratio has improved by about 1%, especially with Win32 exe
+    and text files ; I can now compress the Calgary Corpus within 816,000 bytes
+    and the Canterbury Corpus within 471,000 bytes
+
+  0.35a
+  + a major release
+  + some nice commands have been added : deleting files in an archive, adding
+    files (recursively or not) to an existing archive, extracting files with
+    full pathname, listing contents of archive, testing archives
+    (-> command line options have changed !)
+  + some bug fixes (as usual ;)
+
+  0.34f
+  + some important bug fixes
+  + the compression ratio with text files improved by 1% (thanks to Szymon
+    Grabowski)
+
+  0.34e
+  + compression is about 5% faster
+  + some bug fixes
+
+  0.34d
+  + (un)compression is about 10% faster
+  + the compression ratio improved slightly (0.5%)
+  + some bug fixes
+  + options -b256,-b512... have been replaced by -b1,-b2...
+  + a new compression mode for multimedia files (-mm)
+
+  0.34c
+  + uncompression is 10% faster
+  + the algorithm selection is more efficient and faster
+
+  0.34b
+  + Another speed improvement, Zzip 0.34b is 15% faster than 0.34a, but memory
+    usage has increased, so that there is now a new option '-lowmem' which
+    limits memory usage
+
+  0.34a
+  + Zzip is now 10% faster
+  + Zzip uses now 40% less memory, 7x block size instead of 10x
+  + bug fixes concerning the archive feature and the i/o error handler
+
+  0.33b
+  + some various bug fixes
+  + speed improvements (about 5% faster)
+
+  0.33a
+  + multiple-files-in-a-single-archive feature added
+  + CRC32 control for each file of the archive
+
+  0.32b,c,d
+  + bug fix versions
+  + unix platform
+
+  0.32a
+  + first quite stable version
+
++-----------------------------------------------------------------------------+
+Damien Debin <damien@debin.net>
+http://debin.org/zzip/

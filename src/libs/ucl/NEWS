@@ -1,0 +1,38 @@
+=======================================================================
+User visible changes for the UCL data compression library
+=======================================================================
+
+Changes in 1.03 (20 Jul 2004)
+  * Better Win64 support.
+  * Updated the configure system.
+
+Changes in 1.02 (18 Dec 2003)
+  * Integrated the i386 assembler decompressors into Autoconf.
+  * Integrated the i386 assembler decompressors into the build scripts.
+  * Added include file <ucl/ucl_asm.h> that provides prototypes for all
+    assembler functions.
+  * Under Mac OS X, the configure script now will use the `-no-cpp-precomp'
+    compiler option in order to work around bugs in Apple's native
+    "smart" preprocessor.
+  * Updated the configure system.
+
+Changes in 1.01 (02 Jan 2002)
+  * Implemented the new NRV2E algorithm - better compression for some files.
+  * Slightly faster and smaller i386 assembler decompressors.
+  * Much better support for cross compiling.
+  * Updated the configure system to use Autoconf 2.52 and Libtool 1.4.2.
+
+Changes in 1.00 (18 Jul 2001)
+  * Updated the configure system to use the latest Autoconf,
+    Automake and Libtool versions.
+
+Changes in 0.92 (10 Nov 2000)
+  * Updated the UPX decompressors.
+
+Changes in 0.91 (19 Apr 2000)
+  * Added test_overlap functions that test overlapping in-place
+    decompression without actually writing any decompressed data.
+
+Changes in 0.90 (24 Feb 2000)
+  * First public release.
+

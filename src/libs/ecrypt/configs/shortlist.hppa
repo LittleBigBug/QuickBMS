@@ -1,0 +1,10 @@
+     26 cc_default_fast
+     13 cc_DD64_fast
+     12 cc_DD32_fast
+      4 gcc_default_O3-ual-ofp
+      4 gcc_default_O3-ofp
+      3 gcc_2.0_O3-ual-ofp
+      3 gcc_2.0_O3-ofp
+      2 gcc_2.0_Os-ofp
+      2 gcc_2.0_O2-ofp
+      1 gcc_2.0_O1-ofp

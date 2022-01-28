@@ -1,0 +1,659 @@
+#!/bin/sh
+
+[ -z "$BASH_VERSION" ] && (which bash > /dev/null 2>&1) && exec bash $0 $*;
+
+# -----------------------------------------------------------------------------
+
+root=$(cd $(dirname $(which "$0"))/.. && pwd);
+
+. $root/scripts/tools.sh;
+
+# -----------------------------------------------------------------------------
+
+NEWLINE='
+';
+
+# -----------------------------------------------------------------------------
+
+reports="$root/reports-$HOSTNAME";
+
+mkdir -p "$reports";
+cd "$reports";
+
+pid=$$;
+
+# -----------------------------------------------------------------------------
+
+runwin ()
+{
+    if [ "$(uname)" = "Linux" ]; then
+	wine $1;
+    else
+	$1;
+    fi
+}
+
+# -----------------------------------------------------------------------------
+
+find_in_path ()
+{
+    local IFS=:$NEWLINE;
+
+    find $PATH \( -type f -o -type l \) -perm -a=x  2> /dev/null \
+	| egrep "$1" | sort | while read name; do
+	base="$(basename "$name")";
+
+	if [ "$(which "$base")" = "$name" ]; then
+	    echo "$base";
+	fi
+    done
+}
+
+find_candidates ()
+{
+    status 1 "searching for compilers";
+
+    local IFS=$NEWLINE;
+
+    # GNU compilers
+    for gcc in $(find_in_path '.*/([^ ]*-)*gcc(-[0-9\.]*)?(.exe)?$'); do
+	echo "comp='gcc'; cc='$gcc';";
+    done
+
+    # Intel compilers
+    for icc in $(find_in_path '.*/icc(-[0-9\.]*)?$'); do
+	echo "comp='icc'; cc='$icc';";
+    done
+
+    # Microsoft compilers
+    for msvc in $(find_in_path '.*/cl(-[0-9\.]*)?(.exe)?$'); do
+	echo "comp='msvc'; cc='$msvc';";
+    done
+
+    # Unix compilers
+    case $(uname) in
+	HP-UX|OSF*|SunOS)
+	    if [ -x $(which cc 2> /dev/null) ]; then
+		echo "comp='cc'; cc='cc';";
+	    fi
+	    ;;	    
+    esac
+
+    status 1;
+}
+
+check_gcc ()
+{
+    gcc=$1;
+
+    version=$($gcc -v 2>&1 | awk '/^gcc version/ { print $3; exit; }');
+
+    if $gcc -E - < /dev/null &> /dev/null; then
+	echo "$gcc";
+	
+	if [ "$version" \> "3" ]; then
+	    for version in {3,4}.{0,1,2,3,4}{,.{0,1,2,3,4,5}}; do
+		$gcc -V $version -E - < /dev/null &> /dev/null \
+		    && echo "$gcc -V $version";
+	    done
+	fi
+    fi | while read gcc; do
+	IFS=' ';
+
+	specs=$($gcc -v 2>&1 \
+	    | (md5sum || md5 || openssl md5 || cksum) 2> /dev/null);
+	length=$(printf "%0.3d" ${#gcc});
+
+	if $gcc -dumpmachine | grep "mingw32" 2> /dev/null; then
+	    echo "specs='$specs'; length='$length'; comp='mingw'; cc='$gcc';";
+	else
+	    echo "specs='$specs'; length='$length'; comp='gcc'; cc='$gcc';";
+	fi
+    done
+}
+
+check_gcc_archs ()
+{
+    local IFS=' ';
+
+    gcc=$1;
+
+    for arch in \
+	"" \
+	"-march="{i{386,486},pentium{,-mmx,pro,2,3,4,-m},prescott,nocona} \
+	"-march="{k6{,-2,-3},athlon{,-sse},k8} \
+	"-march="{1.0,1.1,2.0} \
+	"-mcpu="{G{3,4,5}} \
+	"-mcpu="{ev{4,5,56,6,67},pca56} "-mcpu="{v{8,9}} \
+	"-mcpu="{sparc{{,lite}{,86x},let},{su,hy}persparc,ultrasparc{,3}} \
+	; do
+
+        $gcc $arch -Werror conftest.c -o conftest &> /dev/null \
+	    && size=$(./conftest 2> /dev/null) \
+	    && echo "'$arch'";
+
+        if [ "$size" = 4 ]; then
+	    bits="-m64";
+	else
+	    bits="-m32";
+	fi
+
+        $gcc $arch $bits -Werror conftest.c -o conftest &> /dev/null \
+	    && ./conftest &> /dev/null \
+	    && echo "'$arch $bits'";
+    done
+}
+
+check_gcc_opts ()
+{
+    for opt in \
+	"-O"{0,{1,2,3{," -funroll-all-loops"},s}" -fomit-frame-pointer"}; do
+	echo "'$opt'";
+    done
+}
+
+check_mingw_archs ()
+{
+    local IFS=' ';
+
+    gcc=$1;
+
+    for arch in \
+	"" \
+	"-march="{i{386,486},pentium{,-mmx,pro,2,3,4,-m},prescott,nocona} \
+	"-march="{k6{,-2,-3},athlon{,-sse},k8} \
+	; do
+
+        $gcc $arch -Werror conftest.c -o conftest.exe &> /dev/null \
+	    && runwin ./conftest.exe &> /dev/null \
+	    && echo "'$arch'";
+    done
+}
+
+check_mingw_opts ()
+{
+    for opt in \
+	"-O"{0,{1,2,3{," -funroll-all-loops"},s}" -fomit-frame-pointer"}; do
+	echo "'$opt'";
+    done
+}
+
+check_icc ()
+{
+    icc=$1;
+
+    version=$($icc -v 2>&1 | awk '/^Version/ { print $2; exit; }');
+    length=$(printf "%0.3d" ${#icc});
+
+    $icc -E - < /dev/null &> /dev/null && \
+	echo "specs='$version'; length='$length'; comp='icc'; cc='$icc';";
+}
+
+check_icc_archs ()
+{
+    icc=$1;
+
+    for arch in "" "-x"{K,W,N,P,B}; do
+        $icc $arch -Werror conftest.c -o conftest &> /dev/null \
+	    && ./conftest &> /dev/null \
+	    && echo "'$arch'";
+    done
+}
+
+check_icc_opts ()
+{
+    for opt in "-O"{0,1,2,3,s}; do
+	echo "'$opt'";
+    done
+}
+
+check_msvc ()
+{
+    msvc=$1;
+
+    version=$($msvc 2>&1 | awk '/Version/ { print $6 ":" $8; exit; }');
+    length=$(printf "%0.3d" ${#msvc});
+
+    [ "${version%:*}" = "Compiler" ] && \
+	echo "specs='$version'; length='$length'; comp='msvc'; cc='$msvc';";
+}
+
+check_msvc_archs ()
+{
+    msvc=$1;
+
+    for arch in "" "-Gr" "-G"{6,7}{,r}; do
+	if ! $msvc $arch 2>&1 | grep "unknown option" > /dev/null; then
+	    $msvc $arch conftest.c -o conftest.exe &> /dev/null \
+		&& runwin ./conftest.exe &> /dev/null \
+		&& echo "'$arch'";
+	fi
+    done
+}
+
+check_msvc_opts ()
+{
+    for opt in "" "-O"{1,2}; do
+	echo "'$opt'";
+    done
+}
+
+check_msvc ()
+{
+    msvc=$1;
+
+    version=$($msvc 2>&1 | awk '/Version/ { print $6 ":" $8; exit; }');
+    length=$(printf "%0.3d" ${#msvc});
+
+    [ "${version%:*}" = "Compiler" ] && \
+	echo "specs='$version'; length='$length'; comp='msvc'; cc='$msvc';";
+}
+
+check_cc ()
+{
+    cc=$1;
+
+    $cc -E - < /dev/null &> /dev/null && \
+	echo "specs='unix cc'; length='$length'; comp='cc'; cc='$cc';";
+}
+
+check_cc_archs ()
+{
+    cc=$1;
+
+    case $(uname) in
+	HP-UX)
+	    for arch in "" "+DD"{32,64}; do
+		$cc $arch conftest.c -o conftest &> /dev/null \
+		    && ./conftest &> /dev/null \
+		    && echo "'$arch'";
+	    done
+	    ;;
+	OSF*)
+	    for arch in "" "-arch "{ev{4,5,56,6,67},pca56}; do
+		(IFS=' '; $cc $arch conftest.c -o conftest) &> /dev/null \
+		    && ./conftest &> /dev/null \
+		    && echo "'$arch'";
+	    done
+	    ;;
+	SunOS)
+	    for arch in "" "-xarch="v{7,8{,plus}{,a},9{,a,b}}; do
+		if ! $cc $arch 2>&1 | grep "illegal option" > /dev/null; then
+		    $cc $arch conftest.c -o conftest &> /dev/null \
+			&& ./conftest &> /dev/null \
+			&& echo "'$arch'";
+		fi
+	    done
+	    ;;
+    esac
+}
+
+check_cc_opts ()
+{
+    for opt in "" "-fast"; do
+	echo "'$opt'";
+    done
+}
+
+check_compilers ()
+{
+    status 1 "checking compilers and discarding duplicates";
+
+    local IFS=$NEWLINE;
+
+    previous=;
+
+    for line in $1; do eval "$line";
+	check_$comp "$cc";
+    done | sort | while read line; do eval "$line";
+	if [ "$specs" != "$previous" ]; then
+	    previous=$specs;
+	    echo "comp='$comp'; cc='$cc';";
+	fi
+    done | sort;
+
+    status 1;
+}
+
+check_options ()
+{
+    status 1 "checking compiler options";
+
+    cat > conftest.c <<EOF
+#undef __SSE__ /* suppresses warning about xmmintrin.h in icc */
+
+#include <stdio.h>
+#include "../include/ecrypt-portable.h"
+
+int main()
+{
+  printf("%d\n", sizeof(long));
+
+  return 0;
+}
+EOF
+
+    local IFS=$NEWLINE;
+
+    previous=;
+
+    for line in $1; do eval "$line";
+	archs=$(check_${comp}_archs "$cc");
+	opts=$(check_${comp}_opts "$cc");
+
+	if [ -n "$archs" -a -n "$opts" ]; then
+	    line="$line archs=\"{${archs//$NEWLINE/,}}\";";
+	    line="$line opts=\"{${opts//$NEWLINE/,}}\";";
+
+	    echo "$line" | sed 's/{\([^,]*\)}/\1/g';
+	fi
+    done
+
+    rm -rf conftest*;
+
+    status 1;   
+}
+
+compact_cc ()
+{
+    cc=$1;
+
+    cc=${cc// /};
+    cc=${cc//\//-};
+
+    echo "$cc";
+}
+
+compact_arch ()
+{
+    arch=$1;
+
+    [ -n "$arch" ] || arch=default;
+
+    arch=${arch//arch /};
+    arch=${arch// /};
+    arch=${arch#-};
+    arch=${arch#+};
+    arch=${arch#m*=};
+    arch=${arch#xarch=};
+    
+    echo "$arch";
+}
+
+compact_opt ()
+{
+    opt=$1;
+
+    [ -n "$opt" ] || opt=default;
+
+    opt=${opt// /};
+    opt=${opt#-};
+    opt=${opt/fomit-frame-pointer/ofp};
+    opt=${opt/funroll-all-loops/ual};
+
+    echo "$opt";
+}
+
+prepare_configs ()
+{
+    status 1 "creating config files";
+
+    rm -rf configs;
+    mkdir -p configs;
+
+    for line in $1; do eval "$line";
+	options="'arch=\"'$archs'\"; opt=\"'$opts'\";'";
+	options=$(eval "for i in $options; do echo \$i; done");
+    
+	for line in $options; do eval "$line";
+	    tag=$(compact_arch "$arch")_$(compact_opt "$opt");
+	    testobj=_${comp}_$(compact_arch "$arch")"\$(obj)";
+
+	    file=./configs/$(compact_cc "$cc")_$tag.mk;
+	    tag=${comp/mingw/gcc}_$tag;
+
+	    cat > $file <<EOF
+tag = $tag
+testobj = $testobj
+comp = $comp
+cc = $cc
+arch = $arch
+opt = $opt
+EOF
+	done
+    done
+
+    status 1;
+}
+
+config_compilers ()
+{
+    local IFS=$NEWLINE;
+
+    if [ -r compilers ]; then
+	compilers=$(< compilers);
+    else
+	if [ -r candidates ]; then
+	    candidates=$(< candidates);
+	else
+	    candidates=$(find_candidates);
+	    
+	    if [ -z "$candidates" ]; then
+		error 0 "Didn't find compilers in \$PATH."
+		exit 1;
+	    fi
+	    
+	    info 2 "The following executables look like compilers:";
+	    
+	    for line in $candidates; do eval "$line";
+		info 2 "  - $cc";
+	    done
+	    
+	    question 2 "I will now execute them for further testing.";
+	    safe=$(ask 2 "Is this safe? [Y/n]" "y");
+	    
+	    if [ "$safe" = "n" ]; then
+		IFS=;
+		echo "$candidates" > candidates;
+		
+		info 0 "Please edit $reports/candidates and start again.";
+		exit 1;
+	    fi
+	fi
+
+	compilers=$(check_compilers "$candidates");
+	
+	if [ -z "$compilers" ]; then
+	    error 0 "No supported compiler found."
+	    exit 1;
+	fi
+
+	compilers=$(check_options "$compilers");
+
+	rm -rf candidates;
+	echo "$compilers" > compilers;
+    fi
+
+    info 1 "The following compilers are supported:";
+
+    i=0;
+    for line in $compilers; do i=$(expr $i + 1); eval "$line";
+	info 1 "  $i. $cc";
+    done
+
+    while true; do
+	list=$(ask_list "$compilers" 1 "compilers" "");
+
+	if [ -z "$list" ]; then
+	    error 0 "You didn't select any compiler.";
+	else
+	    break;
+	fi
+    done
+
+    prepare_configs "$list";
+
+    shortlists=$(cd $root/configs; ls shortlist*);
+
+    info 1 "The following shortlists contain compiler options which are";
+    info 1 "likely to produce fast code on particular platforms:";
+
+    i=0;
+    for shortlist in $shortlists; do i=$(expr $i + 1);
+	count=$(wc -l "$root/configs/$shortlist");
+	info 1 "  $i. $shortlist (${count%% *} options)";
+    done
+
+    [ -r shortlist ] && default=" or press <enter> to keep the current one";
+    answer=$(ask 1 "Enter a number to select a list$default:" "");
+
+    i=0;
+    shortlist=;
+    for line in $shortlists; do i=$(expr $i + 1);
+	[ "$answer" = "$i" ] && shortlist=$line && break;
+    done
+
+    if [ -n "$shortlist" ]; then
+	status 1 "copying $shortlist";
+	cp "$root/configs/$shortlist" shortlist;
+	status 1;
+    fi
+
+    rm -rf .shortlist-only;
+    
+    if [ -r shortlist ]; then
+	question 2 "After having tested the options in the shortlist, should";
+	answer=$(ask 2 "the script start testing other options? [Y/n]" "y");
+
+	[ "$answer" = "n" ] && touch .shortlist-only;
+    else
+	touch shortlist;
+    fi
+
+    rm -rf .skip-slow;
+
+    question 2 "Should the script skip ciphers which are slower than a given";
+    question 2 "rate? Enter the minimal encryption rate (in cycles/byte) or";
+    answer=$(ask 2 "press <enter> to inlude all ciphers:" "");
+
+    [ -n "$answer" ] && echo "$answer" > .skip-slow;
+
+    return 0;
+}
+
+get_cpuinfo ()
+{
+    status 1 "collecting CPU information"
+
+    if [ -r /proc/cpuinfo ]; then
+
+        # Linux
+
+	cat /proc/cpuinfo &> cpuinfo;
+	cpu_speed=$(awk '/^cpu MHz/ { print $4; exit; }' cpuinfo);
+
+	max_freq="/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq";
+	cur_freq="/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq";
+
+	if [ -r "$max_freq" -a -r "$cur_freq" ]; then
+	    i=0;
+	    while [ $i -lt 1000 ]; do i=$(expr $i + 1);
+		if diff "$max_freq" "$cur_freq" > /dev/null; then
+		    cpu_speed=$(awk '{ print $1 / 1000; exit; }' $cur_freq);
+		    cat /proc/cpuinfo &> cpuinfo;
+		    break;
+		fi
+	    done
+	fi
+
+    elif [ -x "$(which psrinfo 2> /dev/null)" ]; then
+
+        # Solaris, Tru64
+
+	psrinfo -v &> cpuinfo;
+	cpu_speed=$(sed -n 's/.* \([^ ]*\) MHz.*/\1/p' <cpuinfo | head -1);
+
+    elif [ -x "$(which cscript.exe 2> /dev/null)" ]; then
+
+        # MS Windows
+
+	cat > conftest.vbs <<'EOF'
+
+strComputer = "."
+Set objWMIService = GetObject("winmgmts:\\" & strComputer & "\root\cimv2")
+Set colItems = objWMIService.ExecQuery("Select * from Win32_Processor")
+For Each objItem in colItems
+    Wscript.Echo "Processor Id: " & objItem.ProcessorId
+    Wscript.Echo "Maximum Clock Speed: " & objItem.MaxClockSpeed
+Next
+
+EOF
+
+	cscript.exe -nologo conftest.vbs &> cpuinfo;
+	cpu_speed=$(awk '/^Maximum Clock Speed/ { print $4; exit; }' cpuinfo);
+	
+	rm -rf conftest*;
+
+    elif [ "$(uname)" = "Darwin" ]; then
+
+        # Mac OS X
+
+	sysctl -a hw > cpuinfo;
+	cpu_speed=$(awk '/^hw.cpufrequency/ { print $2 / 1000000; exit; }' \
+	    cpuinfo);
+	
+    elif [ "$(uname)" = "HP-UX" ]; then
+
+        # HP-UX
+
+	cat > conftest.c <<EOF
+
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/pstat.h>
+
+int main()
+{
+  struct pst_processor psp;
+
+  pstat_getprocessor(&psp, sizeof(struct pst_processor), 1, 0);
+  printf("%d\n", psp.psp_iticksperclktick * sysconf(_SC_CLK_TCK) / 1000000);
+
+  return 0;
+}
+
+EOF
+
+	eval "$(head -1 compilers)";
+	$cc conftest.c -o conftest &> /dev/null;
+	
+	echo "Model: $(model 2> /dev/null)" > cpuinfo;
+	cpu_speed=$(./conftest 2> /dev/null);
+	
+	rm -rf conftest*;
+    fi
+
+    status 1;
+
+    if [ -z "$cpu_speed" ]; then
+	error 0 "Couldn't determine clock speed.";
+	cpu_speed=$(ask 0 \
+	    "Please enter the clock speed in MHz:" "");
+    else
+	question 1 "The processor seems to run at $cpu_speed MHZ.";
+	answer=$(ask 1 \
+	    "Press <return> if this is correct, or enter the clock speed:" "");
+
+	[ -z "$answer" ] || cpu_speed=$answer;
+    fi
+
+    echo "$cpu_speed" >> cpuinfo;
+}
+
+# -----------------------------------------------------------------------------
+
+config_compilers && get_cpuinfo;
+
+# -----------------------------------------------------------------------------
+
+

@@ -1,0 +1,10 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: @PACKAGE_NAME@
+Description: Lightweight LZS compression
+Version: @PACKAGE_VERSION@
+Libs: -L${libdir} -l@PACKAGE_NAME@
+Cflags: -I${includedir}/@PACKAGE_NAME@

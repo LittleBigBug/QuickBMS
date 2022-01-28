@@ -1,0 +1,24 @@
+*.lznt1
+*.xpress
+*.xpress_huff
+*.lib
+*.pyc
+*.gcda
+x86
+x64
+corpus
+single
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+
+# Compiled Dynamic libraries
+*.so
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+

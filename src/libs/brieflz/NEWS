@@ -1,0 +1,44 @@
+BriefLZ 1.3.0 (2020-02-15)
+
+  * Add btparse algorithm, which is used for levels 8, 9, and optimal
+  * Reduce memory usage on 64-bit Linux
+
+BriefLZ 1.2.0 (2018-10-25)
+
+  * Add compression function `blz_pack_level` that optionally provides
+    better ratios by using more time/space
+  * Slightly improve compression and decompression speed
+  * The source is using some C99 features, for OpenWatcom compile with
+    `-za99` or as C++ with `-cc++`
+
+BriefLZ 1.1.0 (2015-09-05)
+
+  * Remove legacy code and update build system
+  * Use `BLZ_HASH_BITS` to set workmem size
+  * Adjust default block size to 1024k in blzpack
+  * Default to not performing slow CRC computations
+
+BriefLZ 1.05 (unreleased)
+
+  * Add safe decompression functions
+  * Fix a potential portability issue
+
+BriefLZ 1.04 (2004-06-30)
+
+  * Gather all functions in one header file
+  * Add pre-compiled libraries
+  * Add .NET wrapper
+  * Rewrite documentation
+
+BriefLZ 1.02 (2003-08-14)
+
+  * Make it more obvious that `blz_depack` requires the length of the
+    depacked data, not the packed data
+  * Update documentation
+  * Update C source
+
+BriefLZ 1.00 (2003-03-17)
+
+  * First release
+
+Project started November 12th 2002.

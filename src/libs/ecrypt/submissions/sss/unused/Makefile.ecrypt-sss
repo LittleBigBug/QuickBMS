@@ -1,0 +1,24 @@
+# $Id: Makefile.ecrypt 355 2005-04-23 00:01:13Z mwp $
+
+ECRYPT_SSS_SRC = ecrypt-config.h ecrypt-machine.h ecrypt-portable.h\
+	ecrypt-ssyn-ae.h ecrypt-ssyn.h ecrypt-ssyn-ae.c ecrypt-ssyn.c\
+	ecrypt-sss.c Makefile.ecrypt-sss $(SSS_SRC)
+ECRYPT_SSS_OBJS = ecrypt-ssyn-ae.o ecrypt-ssyn.o ecrypt-sss.o
+
+all: $(ECRYPT_SSS_OBJS)
+
+dist: ecrypt-sss-$(VERSION).tgz
+ecrypt-sss-$(VERSION).tgz: $(ECRYPT_SSS_SRC)
+	$(TAR) zcf $@ `ls $(ECRYPT_SSS_SRC) | sort | uniq`
+
+ecrypt-sss: ecrypt-sss.c sssref.o
+	$(CC) -DTEST_MAIN $(CFLAGS) $(LDFLAGS) -o $@ ecrypt-sss.c sssref.o
+
+test: ecrypt-sss-test
+ecrypt-sss-test: ecrypt-sss
+	-./ecrypt-sss
+
+clean: ecrypt-sss-clean
+ecrypt-sss-clean:
+	$(RM) -f ecrypt-sss $(ECRYPT_SSS_OBJS)
+	$(RM) -f ecrypt-sss-$(VERSION).tgz

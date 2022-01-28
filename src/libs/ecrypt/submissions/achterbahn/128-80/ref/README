@@ -1,0 +1,54 @@
+* ================================================================ *
+
+                    A C H T E R B A H N - 128 / 80
+
+     A Hardware Oriented Synchroneous Binary Stream Cipher
+
+            B. M. Gammel, R. Goettfert, O. Kniffler
+
+                              Email:
+
+                        gammel@matpack.de
+                      rainer.goettfert@gmx.de
+                     oliver.kniffler@arcor.de
+
+                     Reference Implementation
+
+* ================================================================ *
+
+List of files:
+==============
+
+  README                       this file
+
+  achterbahn.c                 implementation of Achterbahn-128/80
+                               (C99 source code)
+
+  ecrypt-sync.h                ECRYPT API of Achterbahn-128/80
+                               (C99 header file)
+
+  include/ecrypt-portable.h    ECRYPT API include file
+                               (C99 header file)
+
+  include/ecrypt-machine.h     ECRYPT API include file
+                               (C99 header file)
+
+  include/ecrypt-config.h      ECRYPT API include file
+                               (C99 header file)
+
+  Makefile.achterbahn          Call "make -f Makefile.achterbahn" 
+		               to build the Achterbahn implementation
+			       test suite. 
+
+		               Call "make -f Makefile.achterbahn object" 
+		               to create linkable object code with no
+		               main(), i.e. with no test suite.
+
+		               Call "make -f Makefile.achterbahn clean" 
+		               to remove all binaries
+
+		               Call "make -f Makefile.achterbahn help"
+		               to print out a description of
+			       make targets
+
+* ================================================================ *

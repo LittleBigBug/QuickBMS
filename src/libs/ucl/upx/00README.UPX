@@ -1,0 +1,31 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA1
+
+
+============================================================================
+UCL -- a real-time data compression library
+============================================================================
+
+This directory contains the runtime decompressors which
+are used by the UPX excutable packer.
+
+Please note once again that these files are distributed under the GNU
+General Public License and carefully read the exceptional license
+statements in the UPX License that I grant there to make it possible
+to use UPX compressed files (which are containing these decompressors)
+without restrictions.
+
+Markus F.X.J. Oberhumer
+<markus@oberhumer.com>
+http://www.oberhumer.com
+
+
+
+-----BEGIN PGP SIGNATURE-----
+Version: GnuPG v1.0.6 (GNU/Linux)
+Comment: For info see http://www.gnupg.org
+
+iD8DBQE8MbidTWFXqwsgQ8kRArPDAJwK4+OtQlgss6mqUWTocUeL/KFORgCgr0NO
+fqlxtHJ6SGqSXqhnF80it/Y=
+=eboX
+-----END PGP SIGNATURE-----

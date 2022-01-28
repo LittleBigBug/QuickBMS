@@ -1,0 +1,62 @@
+language: c
+sudo: required
+dist: trusty
+
+matrix:
+  include:
+    - compiler: clang
+      env: BUILD_TYPE=asan
+    - compiler: clang
+      env: BUILD_TYPE=ubsan
+    - compiler: clang
+      env: BUILD_TYPE=shared
+    - compiler: gcc-6
+      addons:
+        apt:
+          sources:
+            - ubuntu-toolchain-r-test
+          packages:
+            - gcc-6
+            - g++-6
+    - env: BUILD_TYPE=coverage
+
+before_install:
+  - if [ "${BUILD_TYPE}" = "coverage" ]; then pip install --user codecov; fi
+
+before_script:
+  - mkdir -p build
+  - cd build
+  - |-
+    case "${BUILD_TYPE}" in
+      "coverage")
+        cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS_DEBUG='-g -O0 --coverage' ..
+        ;;
+      "asan")
+        cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS_DEBUG='-O1 -fno-omit-frame-pointer -fsanitize=address' ..
+        ;;
+      "ubsan")
+        cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_FLAGS_DEBUG='-O1 -fno-omit-frame-pointer -fsanitize=undefined' ..
+        ;;
+      "shared")
+        cmake -DCMAKE_BUILD_TYPE=Debug -DBUILD_SHARED_LIBS=ON ..
+        ;;
+      *)
+        cmake ..
+        ;;
+    esac
+
+script:
+  - make VERBOSE=1
+  - ctest -V --output-on-failure
+
+after_success:
+  - |-
+    if [ "${BUILD_TYPE}" = "coverage" ]; then
+      gcov CMakeFiles/brieflz.dir/src/brieflz.c.gcno -o CMakeFiles/brieflz.dir/src
+      gcov CMakeFiles/brieflz.dir/src/depack.c.gcno -o CMakeFiles/brieflz.dir/src
+      gcov CMakeFiles/brieflz.dir/src/depacks.c.gcno -o CMakeFiles/brieflz.dir/src
+      codecov -X gcov
+    fi
+
+notifications:
+  email: false

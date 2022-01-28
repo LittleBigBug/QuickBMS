@@ -1,0 +1,26 @@
+*** tar-1.16.1/src/tar.c	2007-01-06 17:42:02.000000000 +0100
+--- tar-1.16.1mod/src/tar.c	2007-01-06 17:56:08.000000000 +0100
+***************
+*** 573,578 ****
+--- 573,580 ----
+     N_("create archive with volume name TEXT; at list/extract time, use TEXT as a globbing pattern for volume name"), GRID+8 },
+    {"bzip2", 'j', 0, 0,
+     N_("filter the archive through bzip2"), GRID+8 },
++   {"grzip", 'y', 0, 0,
++    N_("filter the archive through grzip"), GRID+8 },   
+    {"gzip", 'z', 0, 0,
+     N_("filter the archive through gzip"), GRID+8 },
+    {"gunzip", 0, 0, OPTION_ALIAS, NULL, GRID+8 },
+***************
+*** 1263,1268 ****
+--- 1265,1274 ----
+      case 'j':
+        set_use_compress_program_option ("bzip2");
+        break;
++        
++     case 'y':
++       set_use_compress_program_option ("grzip");
++       break;       
+  
+      case 'k':
+        /* Don't replace existing files.  */

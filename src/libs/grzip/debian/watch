@@ -1,0 +1,6 @@
+# See uscan(1) for format
+
+# Compulsory line, this is a version 3 file
+version=3
+
+ftp://ftp.ac-grenoble.fr/ge/geosciences/sunclock/sunclock-([0-9.]*).tar.bz2

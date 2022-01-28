@@ -1,0 +1,76 @@
+#!/bin/sh
+
+# grzgrep wrapped for grzip, 
+# adapted from zgrep by Simon Matter <simon.matter@invoca.ch>
+# for Invoca Linux Server.
+## zgrep notice:
+## zgrep -- a wrapper around a grep program that decompresses files as needed
+## Adapted from a version sent by Charles Levert <charles@comm.polymtl.ca>
+
+PATH="/usr/bin:$PATH"; export PATH
+
+prog=`echo $0 | sed 's|.*/||'`
+case "$prog" in
+	*egrep)	grep=${EGREP-egrep}	;;
+	*fgrep)	grep=${FGREP-fgrep}	;;
+	*)	grep=${GREP-grep}	;;
+esac
+pat=""
+while test $# -ne 0; do
+  case "$1" in
+  -e | -f) opt="$opt $1"; shift; pat="$1"
+           if test "$grep" = grep; then  # grep is buggy with -e on SVR4
+             grep=egrep
+           fi;;
+  -A | -B) opt="$opt $1 $2"; shift;;
+  -*)	   opt="$opt $1";;
+   *)      if test -z "$pat"; then
+	     pat="$1"
+	   else
+	     break;
+           fi;;
+  esac
+  shift
+done
+
+if test -z "$pat"; then
+  echo "grep through grzip files"
+  echo "usage: $prog [grep_options] pattern [files]"
+  exit 1
+fi
+
+list=0
+silent=0
+op=`echo "$opt" | sed -e 's/ //g' -e 's/-//g'`
+case "$op" in
+  *l*) list=1
+esac
+case "$op" in
+  *h*) silent=1
+esac
+
+if test $# -eq 0; then
+  grzip -c -d -f -q | $grep $opt "$pat"
+  exit $?
+fi
+
+res=0
+for i do
+  if test -f "$i"; then :; else if test -f "$i.grz"; then i="$i.grz"; fi; fi
+  if test $list -eq 1; then
+    grzip -c -d -f -q "$i" | $grep $opt "$pat" 2>&1 > /dev/null && echo $i
+    r=$?
+  elif test $# -eq 1 -o $silent -eq 1; then
+    grzip -c -d -f -q "$i" | $grep $opt "$pat"
+    r=$?
+  else
+    j=${i//\\/\\\\}
+    j=${j//|/\\|}
+    j=${j//&/\\&}
+    j=`printf "%s" "$j" | tr '\n' ' '`
+    grzip -c -d -f -q "$i" | $grep $opt "$pat" | sed "s|^|${j}:|"
+    r=$?
+  fi
+  test "$r" -ne 0 && res="$r"
+done
+exit $res

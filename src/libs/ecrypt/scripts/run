@@ -1,0 +1,336 @@
+#!/bin/sh
+
+[ -z "$BASH_VERSION" ] && (which bash > /dev/null 2>&1) && exec bash $0 $*;
+
+# -----------------------------------------------------------------------------
+
+root=$(cd $(dirname $(which "$0"))/.. && pwd);
+
+. $root/scripts/tools.sh;
+
+# -----------------------------------------------------------------------------
+
+reports="$root/reports-$HOSTNAME";
+
+srcdir=$1
+dstdir=.;
+
+[ -n "$srcdir" ] || srcdir=$root;
+[ -d "$srcdir" ] || srcdir=$root/submissions/$1;
+[ -d "$srcdir" ] || srcdir=$root/benchmarks/$1;
+[ -d "$srcdir" ] || srcdir=$root;
+
+srcdir=$(relative "$srcdir" "$PWD");
+
+vectors=verified.test-vectors;
+
+if [ -z "$(find "$srcdir" -name "*$vectors")" ]; then
+    error 0 "no test vectors found in $srcdir";
+    exit;
+fi
+
+if [ -z "$(find "$srcdir" -name "Makefile")" ]; then
+    error 0 "no Makefile found in $srcdir";
+    exit;
+fi
+
+if make -v 2> /dev/null | grep 'GNU' > /dev/null; then
+    gmake="make";
+elif gmake -v 2> /dev/null | grep 'GNU' > /dev/null; then
+    gmake="gmake";
+else
+    error 0 "could not find GNU make on this machine.";
+    exit;
+fi
+
+cpu_speed=$(tail -1 "$reports/cpuinfo");
+
+max_freq="/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq";
+cur_freq="/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq";
+
+if [  -r "$max_freq" -a -r "$cur_freq" ]; then
+    status 1 "warming up CPU";
+
+    i=0;
+    while [ $i -lt 1000 ]; do i=$(expr $i + 1);
+	if diff "$max_freq" "$cur_freq" > /dev/null; then
+	    cur_speed=$(awk '{ print $1 / 1000; exit; }' $cur_freq);
+	    break;
+	fi
+    done
+
+    status 1;
+
+    if [ ${cur_speed%.*} != ${cpu_speed%.*} ]; then
+	warning 1 "clock speed might have changed.";
+    fi
+fi
+
+[ -r "$reports/.skip-slow" ] && skip=$(<"$reports/.skip-slow");
+
+# -----------------------------------------------------------------------------
+
+run ()
+{ 
+    srcdir=$1;
+    vecdir=$2;
+    var=$3;
+    conf=$4;
+
+    ext=${var}_${conf};
+    make="$gmake var=$var conf=$conf";
+
+    name=$($make name);
+    [ "$var" = "1" ] || name="$name (variant $var)";
+
+    report=$(ls *_$ext 2> /dev/null | head -1);
+
+    if [ -n "$report" ]; then
+	touch timestamp -r $report;
+
+	if $make -q timestamp; then
+	    warning 1 "nothing to be done. $report is up to date.";
+	    rm -f timestamp;
+	    return;
+	fi
+
+	rm -f timestamp *_$ext;
+    fi
+
+    if [ -n "$skip" -a -r "$vecdir/fastest" ]; then
+	slow=$(awk '{ if ($1 > '$skip') print "true"; }' "$vecdir/fastest");
+
+	if [ "$slow" = "true" ]; then
+	    warning 1 "skipping slow implementation.";
+	    return;
+	fi
+    fi
+
+    status 1 "compiling $name under $conf";
+	      
+    $make clean &> /dev/null;
+
+    cat > info_current <<EOF
+DATE:
+-------------------------------------------------------------------------------
+$(date)
+
+CPU:
+-------------------------------------------------------------------------------
+$(sed -n '$!p' "$reports/cpuinfo")
+
+COMPILER:
+-------------------------------------------------------------------------------
+$($make version 2>&1)
+
+COMPILATION:
+-------------------------------------------------------------------------------
+$make
+
+$($make 2>&1)
+
+EXECUTABLE:
+-------------------------------------------------------------------------------
+EOF
+
+    status 1;
+
+    if $make -q &> /dev/null; then
+	hash=$($make hash);
+    else
+	echo "none" >> info_current;
+	mv info_current errors_$ext;
+	error 0 "compilation failed (see errors_$ext).";
+
+	$make clean &> /dev/null;
+	return;
+    fi
+
+    status 1 "checking for duplicates";
+
+    matches=$(grep -l "$hash" {info,speed}_*_* 2> /dev/null);
+
+    status 1;
+
+    echo "$hash" >> info_current;
+
+    if [ -n "$matches" ]; then
+	info 1 "executable has been checked before (see $(echo $matches))";
+	mv info_current info_$ext;
+
+	$make clean &> /dev/null;
+	return;
+    fi
+
+    run=$($make run);
+
+    detailed=false;
+
+    for flags in "-pak -s 128 64 64" "-s 128 64 64 -s 256 128 128"; do
+	status 1 "running speed measurements on $cpu_speed MHz CPU";
+    
+	error=$($run -qc $cpu_speed $flags \
+	    2> /dev/null > speed_current; echo "$?");
+	
+	cat >> speed_current <<EOF
+
+*******************************************************************************
+
+$(cat info_current)
+EOF
+
+	status 1;
+	
+	cycles=$(awk '{ sub(/\r/, ""); } /cycles\/byte/ { print $4; exit; }' \
+	    speed_current);
+	
+	if [ -z "$cycles" -o "$error" -gt "0" ]; then
+	    mv speed_current errors_$ext;
+	    rm -f info_current
+	    error 0 "execution failed. check errors_$ext.";
+	    
+	    $make clean &> /dev/null;
+	    return;
+	fi
+
+	if [ -r "$vecdir/fastest" ]; then
+	    comparison=$(awk '{ \
+              if ('$cycles' < $1) \
+                print "better"; \
+              else if ('$cycles' / $1 < 1.01) \
+                print "similar"; \
+              else \
+                print "worse"; }' "$vecdir/fastest");
+	else
+	    comparison="better";
+	fi
+	
+	[ "$comparison" = "worse" ] && break;
+
+	if [ "$detailed" = "false" ]; then
+	    status 1 "generating test vectors";
+
+	    error=$($run -qv > vectors_current 2> /dev/null; echo "$?"); 
+	    mv vectors_current vectors_$ext;
+    
+	    status 1;
+
+	    if [ "$error" -gt "1" ]; then
+		mv vectors_$ext errors_$ext;
+		mv speed_current info_$ext;
+		error 0 "execution failed.";
+
+		$make clean &> /dev/null;
+		return;
+	    fi
+
+	    status 1 "verifying test vectors";
+
+	    result=$(diff -w vectors_$ext "$srcdir/$vecdir/"*"$vectors" | awk \
+             'BEGIN { result="match"; }
+              /^</ { result="conflict"; exit; }
+              /^>/ { result="partial"; }
+              END { print result; }');
+
+	    status 1;
+
+	    case "$result" in
+		match)
+		    rm -f vectors_$ext;
+		    ;;
+		conflict)
+		    mv speed_current info_$ext;
+		    error 0 "vectors do not match. check vectors_$ext.";
+		    
+		    $make clean &> /dev/null;
+		    return;
+		    ;;
+		partial)
+		    warning 1 "vectors are incomplete but match.";
+		    rm -f vectors_$ext;
+		    ;;
+	    esac
+
+	    detailed=true;
+	elif [ "$comparison" = "better" ]; then
+	    echo "$cycles" > "$vecdir/fastest";
+	fi
+    done
+
+    $make clean &> /dev/null;
+
+    rm -f info_current;
+    mv speed_current speed_$ext;
+	
+    info 1 "Current implementation of $name encrypts at $cycles cycles/byte."
+    info 1 "Previous implementations reached $(<$vecdir/fastest) cycles/byte."
+}
+
+# -----------------------------------------------------------------------------
+
+process_dir ()
+{
+    srcdir=$1;
+    dstdir=$2;
+    vecdir=$3;
+    conf=$4;
+
+    if ! mkdir -p "$dstdir"; then
+	error 0 "Cannot create directory $dstdir.";
+	return;
+    fi
+
+    cd "$dstdir";
+    info 1 "Entering directory $(relative "$srcdir" "$root")";
+
+    if [ -n "$vecdir" ]; then 
+	vecdir="../$vecdir";
+    elif [ -r "$srcdir/"*"$vectors" ]; then
+	vecdir=".";
+    fi
+
+    for subdir in "$srcdir"/*; do
+	if [ -d "$subdir" ]; then
+	    [ -n "$(find "$subdir" -name "Makefile")" ] || continue;
+	    [ -n "$vecdir" ] || [ -n "$(find "$subdir" -name "*$vectors")" ] \
+		|| continue;
+
+	    (process_dir "../$subdir" "$(basename $subdir)" "$vecdir" "$conf");
+	fi
+    done
+
+    [ -n "$vecdir" -a -r "$srcdir/Makefile" ] || return;
+
+    sed 's/srcdir = ./srcdir = '${srcdir//\//\\\/}'/' "$srcdir/Makefile" \
+	> Makefile;
+
+    success=$(ls speed_${var}_${conf%%_*}_* 2> /dev/null | wc -l);
+    failure=$(ls {errors,vectors}_${var}_${conf%%_*}_* 2> /dev/null | wc -l);
+
+    if [ "$success" = "0" -a "$failure" -ge "5" ]; then
+	error 0 "This implementation seems to be buggy. Please fix it first.";
+	return;
+    fi
+
+    $gmake variants &> /dev/null;
+
+    for var in $(<variants); do
+	run $srcdir $vecdir $var $conf;
+    done
+}
+
+# -----------------------------------------------------------------------------
+
+for conf in $(cd "$reports/configs"; ls *.mk); do
+    tag=$(awk '/tag = / { print $3; exit; }' "$reports/configs/$conf");
+    score=$(awk '/ '$tag'$/ { print $1; exit; }' "$reports/shortlist");
+
+    echo $((score + 0)) ${conf%.mk};
+done | sort -rn | while read score conf; do
+    [ "$score" = "0" ] && [ -e "$reports/.shortlist-only" ] && break;
+
+    info 1 "Testing $conf configuration (score: $score).";
+    process_dir "$srcdir" "$dstdir" "" $conf < /dev/null;
+done
+
+# -----------------------------------------------------------------------------

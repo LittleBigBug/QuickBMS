@@ -1,0 +1,82 @@
+New versions by Jean-Pierre Demailly 
+<demailly@fourier.ujf-grenoble.fr>
+
+grzip (>= 0.2.8) has been tested on x86, x86_64 and alpha processors.
+It should therefore be 64-bit safe and hopefully also endian safe.
+
+More testing on big-endian machines (e.g. LinuxPPC) is needed, since
+it appears that there are still endian problems.
+
+On 32 bit systems, grzip only works with files < 2GB in size.
+This limitation can be overcome (up to 4 GB on 32-bit systems)
+by using grzip with <stdin> and <stdout> rather than directly on files
+
+
+- Version 0.3.0, January 31, 2007
+
+* Added new scripts : grzdiff  grzgrep  grzmore
+  and support for them in grzip main code.
+  Thanks to  Simon Matter <simon.matter@invoca.ch>
+
+
+- Version 0.2.9, January 6, 2007
+
+* Access and modification times of compressed/decompressed files
+  are now kept identical as those of input files
+
+* Added 'grztar' script
+     grztar -cvf archive.tar.grz  directory     (create archive)
+     grztar -xvf archive.tar.grz                (decompress archive)
+
+* Alternatively, patch to GNU tar (in build/tar.c.patch) to make it
+  work directly with tar (as 'tar -cvfy *' or  'tar -xvfy *')
+     
+* Added support files for Debian/Ubuntu packages
+
+
+- Version 0.2.8, January 5, 2007
+
+* Added -o option and possibility of processing data through <stdin>
+
+* grzip should hopefully be 64-bit clean
+
+* Minor issues fixed. Should now be close from beta status...
+
+
+- Version 0.2.7, January 4, 2007
+
+* Added -z -k options
+
+* Fixed segfault bug when using <stdout> (fclose() was applied to stdout!)
+
+
+- Version 0.2.6, January 2, 2007
+
+* Added grunzip symbolic link.
+
+* Removed all warnings by making appropriate (hopefully irrelevant)
+  changes char -> uint8 in libgrzip.c
+
+* corrected a few minor issues in main program.
+
+* added an option -r which removes input files after operation
+  (removal of input files is now disabled by default)
+
+
+- Version 0.2.5, December 28, 2006
+
+This new version significantly extends and improves release 0.2.4 of
+GRZipII by Ilya Grebnov (published on May 31, 2004).
+
+* Correction on line 287 of libGRZip.c, for a bug which caused critical
+  segfault crashes:
+     uint8 * LZPBuffer=(uint8 *)malloc(*(sint32 *)(Input+8));
+  changed to
+     uint8 * LZPBuffer=(uint8 *)malloc(*(sint32 *)(Input+8)+1024);
+
+* Written new interface grzip.c with more powerful command line options
+  similar to gzip/bzip2.
+
+* Internationalization
+
+* Makefile  modified accordingly.

@@ -1,0 +1,549 @@
+#!/bin/bash
+
+# -----------------------------------------------------------------------------
+
+# set the ECRYPT_ROOT variable
+
+ECRYPT_ROOT=$(cd $(dirname $(which "$0"))/.. && pwd);
+
+if [ ! -e "$ECRYPT_ROOT/include" ]; then
+    echo "error: \"\$ECRYPT_ROOT/include\" does not exist";
+    exit 1;
+fi
+
+# set target directory
+
+dir=$1;
+pwd=$(pwd);
+
+if [ -z "$dir" ]; then
+    dir=.;
+fi
+
+# warn the user
+
+if [ "$2" != "recursive" ]; then
+    echo
+    echo "warning: this script will delete unrecognized files in \"$dir\"";
+    echo -n "do you want to continue? [y/N] ";
+    read answer;
+    echo;
+
+    if [ "$answer" != "y" ]; then
+	exit 1;
+    fi
+fi 
+
+# expand zip and tgz files
+
+echo "cleanup: entering directory $dir";
+
+cd "$dir";
+
+for i in *.{zip,tgz}; do
+    if [ -e "$i" ]; then
+	j=${i%.*};
+
+	if [ -e "$j" ]; then
+	    mv "$j" "$j.old";
+	fi
+
+	mkdir "$j"; cd "$j";
+
+	if [ "${i##*.}" = "zip" ]; then
+	    unzip -qq ../"$i";
+	else
+	    tar -xzf ../"$i";
+	fi
+
+	cd ..;
+	rm "$i";
+    fi
+done
+
+# check if directory really needs to be cleaned
+
+if [ -e unverified.test-vectors -o -e verified.test-vectors ]; then
+    echo;
+    echo "found test-vectors in current directory";
+    echo -n "cleanup anyway? [y/N] ";
+    read answer;
+    echo;
+
+    if [ "$answer" != "y" ]; then
+	exit 1;
+    fi
+fi
+
+cd "$pwd";
+
+# first recursively cleanup all subdirectories
+
+for i in "$dir"/*; do
+    if [ -d "$i" ]; then
+	$0 "$i" recursive;
+
+	# delete empty directories
+
+	if [ "$(ls "$i" | wc -l)" = "0" ]; then
+	    rm -rf "$i";
+	fi
+    fi
+done
+
+cd "$dir";
+
+# process directory without *.h files
+
+if ! ls | grep '\.h$' > /dev/null; then
+    if ls | grep '\.H$' > /dev/null; then
+
+	# apparently file names have been converted to uppercases
+	
+	echo "cleanup: converting file names to lowercases"
+
+	for i in *; do
+	    j=$(echo $i | tr '[:upper:]' '[:lower:]');
+
+	    if [ "$i" != "$j" ]; then 
+		mv "$i" "$j";
+	    fi
+	done
+    else
+
+	# no source files in this directory
+
+	echo "cleanup: nothing to be done here. cleaning up"
+
+	if [ "$(ls | wc -l)" != "0" ]; then
+	    
+	    # delete everything but directories
+
+	    for i in *; do
+		if [ ! -d "$i" ]; then
+		    rm "$i";
+		fi
+	    done
+
+	    files=$(ls | wc -l);
+
+	    if [ "$files" = "1" ]; then
+
+		# collapse unnecessary subdirectories
+
+		i=$(ls);
+
+		mv "$i"/* .;
+		rm -rf "$i";
+	    elif [ "$files" != "0" ]; then
+
+		# rename subdirectories
+
+		echo;
+		echo "the current directory has $files subdirectories:";
+		ls -1;
+
+		for i in *; do
+		    j=$(awk '/^name =/ { print $3; exit; }' "$i/Makefile");
+
+		    echo -n "rename \"$i\" to \"$j\"? [y/N/<name>] ";
+		    read name;
+
+		    if [ -n "$name" -a "$name" != "n" ]; then
+			if [ "$name" = "y" ]; then
+			    name=$j;
+			fi
+
+			if [ "$name" != "$i" ]; then
+			    if [ -e "$name" ]; then
+				mv "$name" "$name.old";
+			    fi
+			    
+			    mv "$i" "$name";
+			fi
+		    fi
+		done
+
+		echo;
+	    fi
+	fi
+
+	exit 1;
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+
+type=;
+name=;
+
+# try to find the ecrypt header file and extract the name and type of
+# the cipher
+
+for i in *.h; do
+    t=$(sed -n 's/^#define ECRYPT_\(SYNC\|SSYN\)\(_AE\)\?\r\?$/\1\2/p' "$i" \
+      | tr '[:upper:]_' '[:lower:]-');
+    
+    if [ -n "$t" ]; then
+	n=$(sed -n 's/^#define *ECRYPT_NAME *"\([^"]*\)".*$/\1/p' "$i" \
+          | tr ' ' '\n' | grep -iv 'ecrypt\|stream\|cipher');
+
+	if [ ${t#*-} = "ae" ]; then
+	    if grep ECRYPT_keysetup "$i" > /dev/null; then
+
+		# correct bug in ecrypt-sync.h and ecrypt-ssyn.h
+
+		t=${t%-ae};
+
+		echo "cleanup: correcting bug in old version of ecrypt-$t.h";
+
+		sed 's/_AE//g' "$i" > .tmp.h;
+		mv -f .tmp.h "$i";
+	    fi
+	fi
+
+	j=ecrypt-$t.h;
+
+	if [ "$i" != "$j" ]; then
+
+	    # name of ecrypt header file was changed
+
+	    echo "cleanup: renaming $i";
+
+	    mv "$i" "$j";
+	    for k in *; do
+		sed "s/$i/$j/g" "$k" > .tmp;
+		mv -f .tmp "$k";
+	    done
+	fi
+
+	if [ -z "$name" ]; then
+	    type=$t;
+	    name=$n;
+	else
+	    echo "warning: different api's in one directory";
+	fi
+    fi
+done
+
+if [ -z "$type" ]; then
+
+    # no ecrypt header file
+
+    echo "cleanup: did not find api. cleaning up";
+
+    for i in *; do
+	if [ ! -d "$i" ]; then
+	    rm "$i";
+	fi
+    done
+    
+    exit 1;
+fi
+
+# ask if algorithm should be renamed
+
+echo;
+echo "ecrypt-$type.h defines a cipher named \"$name\"";
+echo -n "enter a new name, press return to continue, or q to abort: ";
+read new;
+echo;
+
+if [ "$new" = "q" ]; then
+    echo "cleanup: aborting. cleaning up";
+
+    for i in *; do
+	if [ ! -d "$i" ]; then
+	    rm "$i";
+	fi
+    done
+
+    exit 1;
+fi
+
+if [ -n "$new" ]; then
+    name=$new;
+fi
+
+# change name
+
+echo "cleanup: changing name to \"$name\"";
+
+i=ecrypt-$type.h;
+
+sed 's%^\(#define *ECRYPT_NAME *\)"\([^"]*\)"%\1"'$name'"%' "$i" > .tmp.h;
+mv -f .tmp.h "$i";
+
+name=$(echo $name | tr '[:upper:]_/' '[:lower:]--');
+
+# -----------------------------------------------------------------------------
+
+# check if api files have been modified
+
+for i in ecrypt-{config,machine,portable}.h; do
+    if [ -e $i ]; then
+	j=$ECRYPT_ROOT/include/$i;
+
+	if diff -Bwaq $j $i > /dev/null; then
+	    echo "cleanup: $i has not been modified and can be deleted";
+
+	    rm $i;
+	else
+	    echo;
+	    echo "$i has been modified";
+	    echo -n "do you want to see the changes? [y/N] ";
+	    read answer;
+
+	    if [ "$answer" = "y" ]; then
+		diff -Bwau $j $i;
+		echo;
+	    fi
+
+	    echo -n "do you want to ignore the changes? [Y/n] ";
+	    read answer;
+	    echo;
+
+	    if [ "$answer" != "n" ]; then
+		rm $i;
+	    fi
+	fi
+    fi
+done
+
+i=ecrypt-$type.c
+
+if [ -e $i ]; then
+    j=$ECRYPT_ROOT/api/$i;
+
+    if diff -Bwaq $j $i > /dev/null; then
+	echo "cleanup: $i has not been modified and can be deleted";
+
+	rm $i;
+    else
+	echo;
+	echo "$i has been modified";
+	echo -n "do you want to see the changes? [y/N] ";
+	read answer;
+	
+	if [ "$answer" = "y" ]; then
+	    diff -Bwau $j $i;
+	    echo;
+	fi
+	
+	echo -n "do you want to ignore the changes? [Y/n] ";
+	read answer;
+	echo;
+	
+	if [ "$answer" != "n" ]; then
+	    rm $i;
+	fi
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+
+if [ -e "$name.c" ]; then
+    mv "$name.c" "$name.old.c";
+fi
+
+# try to find a C file which exports the ECRYPT_keysetup symbol
+
+cc="gcc -DECRYPT_API=ecrypt-$type.h -I $ECRYPT_ROOT/include";
+nm="nm --defined-only";
+
+if echo $type | grep "ae" > /dev/null; then
+    ks=ECRYPT_AE_keysetup;
+else
+    ks=ECRYPT_keysetup;
+fi
+
+for i in *.c; do
+    echo "cleanup: checking $i";
+
+    $cc -c -std=gnu99 -o .tmp.o $i 2> /dev/null;
+
+    if [ -e .tmp.o ]; then
+	if $nm .tmp.o | grep $ks > /dev/null; then
+	    j=$name.c;
+
+	    if [ "$i" != "$j" ]; then
+		echo "cleanup: renaming $i";
+
+		mv "$i" "$j";
+	    fi
+	fi
+
+	rm -f .tmp.o;
+    fi
+done
+
+# rename README file
+
+readme=$(ls | grep -i readme | head -1);
+
+if [ -n "$readme" -a "$readme" != "README" ]; then
+    echo "cleanup: renaming $readme";
+    mv "$readme" README;
+fi
+
+# if no C file was found, ask the user to fix it
+
+while [ ! -e $name.c ]; do
+    echo
+    echo "error: no implementation found";
+    echo -n "do you want to try to fix this manually? [Y/n] ";
+    read answer;
+    echo
+
+    if [ "$answer" = "n" ]; then
+	echo "cleanup: giving up. cleaning up"
+	
+	for i in *; do
+	    if [ ! -d "$i" ]; then
+		rm "$i";
+	    fi
+	done
+
+	exit 1;
+    else
+	export name type;
+	stage=1 bash --rcfile "$ECRYPT_ROOT/scripts/manual.rc";
+    fi
+done
+
+# find dependencies and remove all other files
+
+files=$($cc -MM $name.c | sed 's/\\//g; s/^.*://'; echo README);
+files=$((ls $files 2> /dev/null; ls) | sort | uniq -d);
+
+if [ -e "unused" ]; then
+    mv unused unused.old;
+fi
+
+mkdir unused;
+
+(ls $files; ls; echo unused) | sort | uniq -u | while read i; do
+    mv "$i" unused;
+done
+
+fromdos * 2> /dev/null;
+
+# -----------------------------------------------------------------------------
+
+# create a make file
+
+cat > Makefile <<EOF
+
+name = $name
+type = $type
+std = -ansi
+EOF
+
+cat >> Makefile <<'EOF'
+
+srcdir = .
+root := $(shell \
+  cd "$(srcdir)"; root="$(srcdir)"; \
+  while [ "`pwd`" != "/" ]; do \
+    if [ -r "`pwd`/test/ecrypt-test.mk" ]; then  \
+      echo $$root; exit; \
+    fi; \
+    cd ..; root="$$root"/..; \
+  done; \
+  echo ".")
+
+
+include $(root)/test/ecrypt-test.mk
+
+EOF
+
+# try to compile under different standards
+
+for std in {'-std=gnu99','-std=c99','-ansi'}; do
+    while true; do
+	make mrproper &> /dev/null;
+	errors=$((make std="$std" 2>&1) | grep "error:\|warning:" | wc -l);
+
+	if [ -e ecrypt-test ]; then
+	    sed 's/std = -.*$/std = '$std'/g' Makefile > .tmp;
+	    mv -f .tmp Makefile;
+
+	    if [ "$errors" = "0" ]; then
+		echo "cleanup: $name.c compiles correctly with $std";
+		break;
+	    else
+		echo;
+		echo "got $errors warnings during compilation with $std";
+	    fi
+	else
+	    echo;
+	    echo "compilation of $name.c with $std failed ($errors errors)";
+	fi;
+
+	if [ "$errors" != "0" -o ! -e ecrypt-test ]; then
+	    echo -n "do you want to fix this now? [Y/n] ";
+	    read answer;
+	    echo
+	    
+	    if [ "$answer" = "n" ]; then
+		break 2;
+	    else
+		make mrproper &> /dev/null;
+
+		export name type std;
+		stage=2 bash --rcfile "$ECRYPT_ROOT/scripts/manual.rc";
+		
+		rm -rf *~;
+	    fi
+	fi
+    done
+done
+
+if [ -e ecrypt-test ]; then
+    rm -rf unused;
+fi
+
+# -----------------------------------------------------------------------------
+
+make mrproper &> /dev/null;
+make &> /dev/null;
+
+if [ -e ecrypt-test ]; then
+    while true; do
+	echo "cleanup: running ecrypt-test...";
+	(./ecrypt-test -v -t 3600 > test-vectors) 2> errors;
+	
+	errors=$(awk '/errors/ { print $3; exit; }' errors);
+	
+	if [ "$errors" = "0" ]; then
+	    echo "cleanup: created testvectors";
+
+	    mv test-vectors unverified.test-vectors;
+	    rm -rf errors;
+	    break;
+	else
+	    echo;
+	    echo "ecrypt-test returned $errors errors";
+	    echo -n "do you want to fix this now? [Y/n] ";
+	    read answer;
+	    echo
+	
+	    if [ "$answer" = "n" ]; then
+		rm -rf test-vectors errors;
+		break;
+	    else
+		export name type;
+		stage=3 bash --rcfile "$ECRYPT_ROOT/scripts/manual.rc";
+		
+		rm -rf *~;
+
+		make mrproper &> /dev/null;
+		make &> /dev/null;
+	    fi
+	fi
+    done
+fi
+
+make mrproper &> /dev/null;
+
+# -----------------------------------------------------------------------------

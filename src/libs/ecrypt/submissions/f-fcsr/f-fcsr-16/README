@@ -1,0 +1,2 @@
+A reference portable implementation for F-FCSR-16
+Main file to compile is ffcsr16.c

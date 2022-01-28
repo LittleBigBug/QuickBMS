@@ -1,0 +1,83 @@
+#!/bin/bash
+
+if [ -e "$HOME/.bashrc" ]; then
+    source "$HOME/.bashrc";
+fi
+
+PS1="\u@\h:$name> ";
+
+alias e="emacs $name.c &";
+alias h="emacs ecrypt-$type.h &";
+alias l="emacs ChangeLog &";
+alias r="less README";
+alias q="exit";
+
+case "$stage" in
+    "1")
+	alias c="gcc -DECRYPT_API=ecrypt-$type.h -I $ECRYPT_ROOT/include \
+          -std=gnu99 -c $name.c 2>&1 | head";
+
+	cat <<EOF 
+The ecrypt header file is called ecrypt-$type.h. The implementation
+should come in $name.c.  Candidate files are:
+
+EOF
+
+	ls -1 *.c;
+
+	cat <<EOF 
+
+You can use the aliases 'e' and 'c' to edit and compile $name.c. When
+finished, type 'q' to return.
+
+EOF
+	;;
+    "2")
+	alias c="make std=$std 2>&1 | head"; 
+	alias m="emacs Makefile &";
+
+	cat <<EOF
+The following aliases are avialable:
+
+  e - edit $name.c
+  h - edit ecrypt-$type.h
+  l - edit ChangeLog
+  m - edit Makefile
+  r - read README
+  c - make (with $std)
+
+Note: a typical problem is an extra main() function (which can be
+disabled with #ifndef ECRYPT_API) or a missing
+
+void ECRYPT_init(void)
+{ }
+
+When finished, type 'q' to return.
+
+EOF
+	;;
+    "3")
+	alias c="make 2>&1 | head";
+	alias t="(./ecrypt-test > test-vectors) 2>&1 | head";
+	alias o="less errors";
+	alias v="less test-vectors";
+	alias s="nm $name.o | grep -v ' T '";
+
+	cat <<EOF
+The following aliases are avialable:
+
+  e - edit $name.c
+  h - edit ecrypt-$type.h
+  l - edit ChangeLog
+  o - view errors
+  v - view test-vectors
+  s - view static data
+  r - read README
+  c - make
+  t - run ecrypt-test
+
+When finished, type 'q' to return.
+
+EOF
+	;;
+esac

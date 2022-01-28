@@ -1,0 +1,42 @@
+##
+## blzpack - BriefLZ example
+##
+## Visual C++ Makefile
+##
+
+.SUFFIXES:
+.SUFFIXES: .obj .c
+
+CFLAGS = /W2 /O2 /fp:fast /GL
+CPPFLAGS = /DNDEBUG /I..\include
+LDFLAGS = /release
+
+!IF "$(PLATFORM)"=="X64" || "$(PLATFORM)"=="x64"
+LDFLAGS = $(LDFLAGS) /opt:ref,icf /subsystem:console,5.02
+!ELSEIF "$(PLATFORM)"=="X86" || "$(PLATFORM)"=="x86"
+LDFLAGS = $(LDFLAGS) /opt:ref /subsystem:console,5.01
+!ENDIF
+
+objs = blzpack.obj parg.obj brieflz.obj depack.obj depacks.obj
+
+target = blzpack.exe
+
+all: $(target)
+
+.c.obj::
+	$(CC) /MP $(CFLAGS) $(CPPFLAGS) /c $<
+
+{..\src}.c.obj::
+	$(CC) /MP $(CFLAGS) $(CPPFLAGS) /c $<
+
+$(target): $(objs)
+	$(CC) $(CFLAGS) $(CPPFLAGS) /Fe$@ $** /link $(LDFLAGS) $(LDLIBS)
+
+clean:
+	del /Q $(objs) $(target)
+
+blzpack.obj: ..\include\brieflz.h parg.h
+parg.obj: parg.h
+brieflz.obj: ..\include\brieflz.h
+depack.obj: ..\include\brieflz.h
+depacks.obj: ..\include\brieflz.h

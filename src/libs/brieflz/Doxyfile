@@ -1,0 +1,11 @@
+# Doxyfile 1.8.6
+PROJECT_NAME           = "BriefLZ"
+OUTPUT_DIRECTORY       = doc
+JAVADOC_AUTOBRIEF      = YES
+TAB_SIZE               = 8
+OPTIMIZE_OUTPUT_FOR_C  = YES
+EXTRACT_ALL            = YES
+INPUT                  = include/brieflz.h README.md
+GENERATE_LATEX         = NO
+USE_MDFILE_AS_MAINPAGE = README.md
+EXCLUDE_SYMBOLS        = BLZ_API BLZ_LOCAL

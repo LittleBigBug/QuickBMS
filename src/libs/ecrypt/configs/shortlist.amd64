@@ -1,0 +1,17 @@
+     20 gcc_k8_O3-ual-ofp
+     14 gcc_default_O3-ual-ofp
+      9 gcc_nocona_O3-ual-ofp
+      5 gcc_prescott_O3-ual-ofp
+      5 gcc_nocona_O1-ofp
+      4 gcc_nocona_O3-ofp
+      3 gcc_pentium_O3-ual-ofp
+      3 gcc_k8_Os-ofp
+      2 gcc_prescott_Os-ofp
+      2 gcc_default_Os-ofp
+      1 gcc_pentium_O3-ofp
+      1 gcc_pentium4_O3-ual-ofp
+      1 gcc_nocona_Os-ofp
+      1 gcc_k8_O1-ofp
+      1 gcc_i386_O3-ual-ofp
+      1 gcc_default_O3-ofp
+      1 gcc_default_O1-ofp

@@ -1,0 +1,2 @@
+LIBRARY ZenLib
+EXPORTS zen_decompress

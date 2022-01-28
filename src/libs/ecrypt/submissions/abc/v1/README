@@ -1,0 +1,45 @@
+
+    ABC CIPHER. C REFERENCE IMPLEMENTATION WITH PERFORMANCE TESTS
+
+1. PROJECT STRUCTURE
+
+    Folders and files in main project tree are organized as follows.
+
+        README               This file
+        Makefile             Makefile for GNU make utility
+        ecrypt-portable.h    ECRYPT portable C default macros
+        ecrypt-config.h      ECRYPT macros for integer types
+        ecrypt-machine.h     ECRYPT platform-specific macros
+        ecrypt-sync.h        ECRYPT interface declarations
+        ecrypt-sync.c        ECRYPT standard routine implementation
+        abc.h                Header declarations of ABC constants
+        abc.c                Core ABC routines
+        main.c               Various tests of ABC functionality
+
+2. BUILDING PROJECT FOR GNU GCC
+
+    Executable for ABC performance test (abc) is created by executing
+    'make all' (or alternatively just 'make') command. Cleanup of object files
+    can be performed by 'make clean'. Rebuild of everything is done by
+    'make rebuild' command.
+
+3. VARYING IMPLEMENTATION PARAMETERS
+
+   Implementation memory consumption (and therefore speed) can be varied at
+   compile time by ECRYPT_VARIANT parameter, specified in Makefile.
+   Specifically, ECRYPT_VARIANT controls optimization window size and cycle
+   unroll depth in ABC core code. Possible values for ECRYPT_VARIANT are
+   defined in the table below.
+
+   ECRYPT_VARIANT   Optimization window size    Cycle unroll depth
+   0                1 (no optimization)         1
+   1                2                           4
+   2                2                           8
+   3                4                           4
+   4                4                           8
+   5                4                           16
+   6                8                           4
+   7                8                           8
+   8                8                           16
+   9                12-12-8                     16
+

@@ -1,0 +1,27 @@
++-----------------------------------------------------------------------------+
+ ZZLIB version 0.36c  04-Jun-2001
+ Copyright (c) 2001 Damien Debin, all rights reserved.
+ Yet another block-sorting compressor for Windows 9x/Me/NT/2000 and Unix !
++-----------------------------------------------------------------------------+
+
+ZZLIB is a library based on ZZIP, it uses the same algorithms as Zzip and
+enables you to compress memory block. You are free to use this library in your 
+program and you are free to distribute this libray with your program, but you
+have to mention somewhere in your program that it uses Zzlib.
+
+Have a look at Zzip documentation if you want further information about Zzip
+and Zzlib.
+
+At Zzip website, you can download an example (dlltest.zip), for MS VC++ 5.0
+or GCC-MINGW32, using Zzlib.
+
+The source code of Zzlib is released under the GNU LGPL, you can download it
+at Zzip/Zzlib website.
+
+Warning : since this software is still in development, different versions are 
+not cross-compatible. It means that a memory block compressed with zzlib may not
+be uncompressed with a different (newer or older) version of zzlib.
+
++-----------------------------------------------------------------------------+
+Damien Debin <damien@debin.net>
+http://debin.org/zzip/

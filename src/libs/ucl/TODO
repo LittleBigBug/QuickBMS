@@ -1,0 +1,14 @@
+=======================================================================
+TODO list for the UCL data compression library
+=======================================================================
+
+
+Planned for the next versions:
+------------------------------
+
+- add AMD64 versions of the assembler functions
+
+- add more documentation
+
+- add more example programs
+

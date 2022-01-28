@@ -1,0 +1,225 @@
+--------------------------------------------------------------------------------
+Codificaciones para las consolas GBA/DS de Nintendo   11-Nov-2011   (c) CUE 2011
+--------------------------------------------------------------------------------
+
+Este conjunto de utilidades sirve para codificar datos usados por las consolas y
+que suelen provocar una disminución de tamaño, lo que hace que también se llamen
+compresiones, confundiendo la acción en sí misma con el efecto.
+
+Algunas de esas codificaciones pueden ser tratadas por la BIOS, simplificando el
+proceso de decodificación ya que es realizado directamente por la propia consola
+sin tener que añadir más código. Esas codificaciones son RLE, LZSS y Huffman. La
+codificación LZSS se suele llamar equivocadamente LZ77, a pesar de no tener nada
+que ver con ella.
+
+Hay juegos que utilizan sus propias codificaciones, y se han añadido también por
+si se desea trabajar con ellas. A esas codificaciones las he puesto el nombre de
+LZX, LZE y BLZ para poder diferenciarlas.
+
+A la LZX se la conoce también como ONZ/LZ11 o LZ40, según la forma de guardar la
+información (big endian o low endian). Su nombre significa LZ eXtendida, y no es
+más que una mejora de una codificación ya usada por Nintendo, la llamada 'Yaz0'.
+
+La LZE es una doble LZSS donde se emplea una u otra según los datos tratados. Su
+nombre significa LZ mejorada ('LZ Enhanced' en inglés).
+
+La BLZ, nombre que uso como abreviatura de 'Bottom LZ', es la que se usa con los
+overlays de DS y se caracteriza porque puede tener una parte sin codificar antes
+de la parte codificada, y ésta última se debe de tratar empezando desde el final
+del fichero (de ahí lo de 'Bottom'). Además, es la extención usada en los juegos
+que la utilizan.
+
+La codificación LZSS incluye mi propia codificación, que, aunque es más lenta en
+ejecución, suele obtener mejores resultados frente al algoritmo tradicional pues
+se ha optimizado. Esta codificación suelo llamarla LZC o LZ-CUE, y el proceso de
+decodificación coincide con el que se usa normalmente, incluido el que se usa en
+la BIOS de la consola, por lo que se puede usar sin ningún tipo de problema.
+
+La razón de hacer públicas estas utilidades es porque actualmente no hay ninguna
+que realice algunas codificaciones correctamente, como pasa con Hufmman, la LZ40
+o la BLZ. Y eso que hay consolas, como la GBA, que salieron al mercado en 2001 y
+usan Huffman. Con estas utilidades ya no habrá ningún problema en usar datos que
+se hayan modificado y usen alguna de esas codificaciones.
+
+Se incluye el ejecutable de cada una de ellas así como su código fuente en C con
+licencia pública general de GNU (GNU GPL).
+
+Para testear los distintos modos de codificación se pueden analizar cómo estaban
+originalmente los ficheros y cómo quedan después de decodificarlos y volverlos a
+codificar. Es una buena forma de saber si la codificación se hace correctamente,
+que suele ser el proceso que más dificultades presenta.
+
+Todas las utilidades tienen la misma sintaxis, comenzando con un comando que nos
+indica la acción a realizar seguido de uno o varios ficheros, que pueden incluir
+comodines en su nombre. Al ser un proceso de línea de comandos, hay que tener en
+cuenta que si un fichero lleva espacios en su nombre deberemos ponerlo encerrado
+entre comillas, pues de otra forma se interpretará como dos ficheros diferentes.
+Los ficheros que se generan siempre sustituyen a los ficheros originales, por lo
+que es aconsejable hacer siempre una copia de todo antes del proceso, lo cual es
+responsabilidad del usuario.
+
+Aunque este fichero está en castellano, las utilidades tienen todos sus mensajes
+en inglés. Es por ello que se usa '-e' para codificar, de 'encode'. No he tenido
+ni tiempo ni ganas de traducir este fichero al inglés, pues me resulta mucho más
+sencillo escribir en mi idioma nativo, así que prefiero explicarlo por si alguno
+se sorprende al ver algunas opciones (encode, fast, ...).
+
+No se va a explicar el formato de los datos de cada tipo de codificación. Es muy
+sencillo si se tiene un mínimo de conocimiento, por lo que no hay razón para que
+este fichero se alargue más de lo necesario, a pesar de que alguno de ellos está
+explicado por la red de forma extraña (como en el caso de Huffman). No obstante,
+quien quiera una explicación algo más detallada de los procesos puede buscarme y
+pedirla, pero lo haré siempre en mi lengua nativa.
+
+Se podría optimizar un poco más el algoritmo usado en las codificaciones LZE/RLZ
+pero no se ha hecho por ahora.
+
+
+Codificación RLE
+--------------------------------------------------------------------------------
+
+RLE comando fichero [fichero [...]]
+
+Comandos:
+  -d ... decodifica un fichero
+  -e ... codifica un fichero
+
+Esta codificación siempre deja los ficheros exactamente iguales a los originales
+sin que cambien ni un sólo bit. No tiene mayor misterio.
+
+
+Codificación LZSS
+--------------------------------------------------------------------------------
+
+LZSS comando fichero [fichero [...]]
+
+Comandos:
+  -d ..... decodifica un fichero
+  -evn ... codifica un fichero, compatible con VRAM, modo normal
+  -ewn ... codifica un fichero, compatible con WRAM, modo normal
+  -evf ... codifica un fichero, compatible con VRAM, modo rápido (fast)
+  -ewf ... codifica un fichero, compatible con WRAM, modo rápido (fast)
+  -evo ... codifica un fichero, compatible con VRAM, modo óptimo
+  -ewo ... codifica un fichero, compatible con WRAM, modo óptimo
+
+Los ficheros codificados compatibles con VRAM no presentan ningún problema si se
+decodifican directamente en la RAM de vídeo de la consola, y son la mejor opción
+pues funcionan tanto en VRAM como en WRAM. Un fichero codificado para WRAM puede
+mostrar 'basura' al ser decodificado en VRAM, pues su bus de datos es de 16-bits
+y puede provocar un conflicto al intentar leer y escribir al mismo tiempo en una
+dirección de memoria. Lo normal es que se usen ficheros compatibles con VRAM.
+
+La opción 'n' hace que los ficheros codificados queden exactamente iguales a los
+ficheros codificados originales.
+
+La opción 'f' realiza la codificación mediante búsquedas en árboles binarios, lo
+que hace que el proceso sea mucho más rápido. En teoría los ficheros codificados
+de esta forma deberían ocupar lo mismo que con la opción 'n' pero no ocurre así,
+ocupando a veces un poco más y otras veces un poco menos. Es algo pendiente para
+mirar, aunque no tiene mayor importancia.
+
+La opción 'o' es mi propia versión de la codificación, usando un nuevo algoritmo
+para conseguir mejores resultados a costa de emplear más tiempo, la LZC.
+
+El motivo por el que la utilidad mantiene todos los modos es para que el usuario
+pueda ver las diferencias entre ellos: cómo se hace originalmente (normal), cómo
+se hace lo mismo pero de forma mucho más rápica (fast) y cómo se puede codificar
+de una forma más óptima a la que se ha usado siempre (optimal).
+
+Sea cual sea la forma usada al codificar los datos, el proceso de decodificación
+es común a todas ellas, y se recomienda usar la compatibilidad con VRAM para que
+no haya problemas si se decodifican los datos en la memoria de vídeo.
+
+
+Codificación Huffman
+--------------------------------------------------------------------------------
+
+HUFFMAN comando fichero [fichero [...]]
+
+Comandos:
+  -d .... decodifica un fichero
+  -e8 ... codifica un fichero, modo 8-bits
+  -e4 ... codifica un fichero, modo 4-bits
+  -e0 ... codifica un fichero eligiendo el modo que menos ocupe
+
+Los datos codificados siempre quedan idénticos a los originales, pero en el modo
+de 8-bits el árbol de códigos puede ser diferente (la parte inicial de los datos
+de hasta 512 bytes). Esto se debe a la reorganización de nodos del árbol, que se
+hace para evitar ciertos problemas de solapamiento de información.
+
+La opción 'e0' busca cual de los métodos es el mejor, en términos de ratio, y lo
+elige, descartando el otro.
+
+La utilidad está preparada para trabajar con codificaciones de 2-bis y 1-bit, si
+bien sólo se han usado como test, a pesar de que el proceso usado es exactamente
+el mismo, sin tener que modificar nada.
+
+
+Codificación LZX
+--------------------------------------------------------------------------------
+
+LZX comando fichero [fichero [...]]
+
+Comandos:
+  -d ..... decodifica un fichero
+  -evb ... codifica un fichero, compatible con VRAM, modo big-endian
+  -ewb ... codifica un fichero, compatible con WRAM, modo big-endian
+  -evl ... codifica un fichero, compatible con VRAM, modo low-endian
+  -ewl ... codifica un fichero, compatible con WRAM, modo low-endian
+
+Al modo big-endian se le conoce también como 'ONZ' o 'LZ11' y al modo low-endian
+como 'LZ40', debido a la extensión/cabecera que presenta en sus datos, aunque no
+es más que una mejora de una codificación usada por Nintendo en otras consolas y
+que se conoce como 'Yaz0', pensada para grandes repeticiones de cadenas de datos
+dentro del mismo fichero.
+
+Algunos juegos de DS, como 'Ace Attorney Investigations - Miles Edgeworth', usan
+la forma big-endian compatible con VRAM, y otros, como 'Golden Sun - Dark Dawn',
+usan la forma low-endian compatible con WRAM. Debido a ello, la utilidad permite
+elegir el tipo de compatibilidad.
+
+Los ficheros big-endian compatibles con VRAM quedan idénticos a los originales y
+los low-endian compatibles con WRAM presentan algunas diferencias en los offsets
+que indican la compresión, siendo el resto idéntico.
+
+
+Codificación LZE
+--------------------------------------------------------------------------------
+
+LZE comando fichero [fichero [...]]
+
+Comandos:
+  -d ... decodifica un fichero
+  -e ... codifica un fichero
+
+Esta codificación usa dos tipos diferentes de LZSS, con 8 ó 16 bits para indicar
+los datos que están comprimidos, usando la mejor en cada momento.
+
+Esta codificación suele dejar los ficheros algo más pequeños que los originales,
+y es otra cosa pendiente de mirar para intentar que quede igual.
+
+Ésta es la codificación que se usa en los juegos 'Luminous Arc 2-3' de DS.
+
+
+Codificación BLZ
+--------------------------------------------------------------------------------
+
+BLZ comando fichero [fichero [...]]
+
+Comandos:
+  -d .... decodifica un fichero
+  -en ... codifica un fichero, modo normal
+  -eo ... codifica un fichero, modo óptimo
+
+Ésta es la codificación que se emplea con los overlays de DS y en algunos juegos
+como 'RPG Maker DS'. Su principal característica es que puede tener una parte no
+codificada antes de la parte codificada, que es una LZ normal que comienza desde
+el final del fichero hacia el principio.
+
+Esta codificación suele dejar los ficheros algo más pequeños que los originales,
+siendo otra cosa pendiente de mirar para intentar que quede igual.
+
+
+--------------------------------------------------------------------------------
+Codificaciones para las consolas GBA/DS de Nintendo   11-Nov-2011   (c) CUE 2011
+--------------------------------------------------------------------------------

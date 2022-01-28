@@ -1,0 +1,11 @@
+     18 cc_pca56_fast
+     14 gcc_pca56_O3-ual-ofp
+      8 gcc_pca56_O3-ofp
+      8 gcc_pca56_O2-ofp
+      6 cc_pca56_default
+      5 cc_ev6_fast
+      4 gcc_pca56_Os-ofp
+      3 cc_ev5_fast
+      2 gcc_ev5_O2-ofp
+      1 gcc_ev6_O3-ofp
+      1 gcc_default_O3-ofp

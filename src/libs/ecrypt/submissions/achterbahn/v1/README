@@ -1,0 +1,63 @@
+* ================================================================ *
+
+                          A C H T E R B A H N
+
+        A Hardware Oriented Synchroneous Stream Cipher
+
+            B. M. Gammel, R. Goettfert, O. Kniffler
+                             Email:
+   {Berndt.Gammel,Rainer.Goettfert,Oliver.Kniffler}@infineon.com
+
+                    Infineon Technologies AG
+           St.-Martin-Str. 76, D-81541 Munich, Germany
+
+                    Reference Implementation
+                           Version 1.0
+
+* ================================================================ *
+
+List of files:
+==============
+
+  README               this file
+
+  achterbahn.c         implementation of the Achterbahn stream cipher 
+                       (C99 source code)
+
+  ecrypt-sync.h         interface definition of the Achterbahn stream
+                       (C99 header file)
+
+  ecrypt-portable.h    portability include file
+                       (C99 header file)
+
+  ecrypt-machine.h     portability include file
+                       (C99 header file)
+
+  ecrypt-config.h      portability include file
+                       (C99 header file)
+
+  ecrypt-sync.c        implementation of interfaces
+
+  Makefile	       Call "make" 
+		            to build the Achterbahn implementation
+			    test suite. 
+
+		       Call "make object" 
+		            to create linkable object code with no
+		            main(), i.e. with no test suite.
+
+		       Call "make noconf" 
+		            to build the Achterbahn implementation
+			    test suite for the stream cipher without
+			    the configuration feature 
+
+		       Call "make noconfobject" 
+		            to create linkable object code of the 
+			    stream cipher without the configuration feature.
+
+		       Call "make clean" 
+		            to remove all binaries
+
+		       Call "make help"
+		            to print out a description of
+			    possible arguments

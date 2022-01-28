@@ -1,0 +1,1334 @@
+File:    SQX_NOTE.TXT - .SQX File Format Specification
+Version: 1.1
+Revised: 10/06/2002
+Copyright (c) 1999 - 2002 Rainer Nausedat, All Rights Reserved.
+
+
+
+
+Table of Contents
+==================
+
+Introduction                                            1
+Disclaimer                                              1.1
+Concepts                                                2
+  LZ77 Coder                                            2.1
+  Repeated Offsets                                      2.2
+  Transform Coders                                      2.3
+  Huffmann Coders                                       2.4
+The LZH Compressor                                      3
+  Compressing the LZ Coder Output                       3.1
+  Compressing the Bit Lengths							3.2
+  The Format of a compressed LZ Block				    3.3
+The Multimedia Compressor                               4
+  The Format of a compressed MM Block				    4.1
+The Audio Compressor                                    5
+  The Format of a compressed Audio Block                5.1
+Data Encryption                                         6
+The SQX Archive Format                                  7
+  The Archive Main Header                               7.1
+  The Archive File Header                               7.2
+  The Archive Directory Header                          7.3
+  The End of Archive Header                             7.4
+  The Archive Comment Header                            7.5
+  Data Recovery Records                                 7.6
+  Archive Subheaders                                    7.7
+    The Archive Internal Header                         7.7.1
+    The Audio Header                                    7.7.2
+    The Delta Header                                    7.7.3
+References                                              8
+Credits                                                 9
+Appendix A                                              10
+
+
+
+
+1 Introduction                                            
+===============
+
+This document is a design specification for the format of SQX compressed data 
+used in the SQX compression mode of the Squeez archiver and the SQX command 
+line archiver.  
+
+The purpose of this document is to allow anyone to compress or decompress SQX 
+compressed data.  This document describes only the format of the output, it 
+does not provide any specific algorithms for Huffmann coding, LZ77 coding 
+etc., it is assumed that the reader is comfortable with the compression
+algorithms mentioned in this document.
+
+The SQX archiver and the SQX archive format were developed due to the fact 
+that there are no or only incomplete specifications available for most other 
+archivers. Also, it is even prohibited to create archives of certain archive 
+formats with "self written code". This makes it impossible to use these archive 
+formats for example in inhouse solutions etc.
+
+It is the opposite for SQX: You are welcome to use the design specification
+and/or related source code/libs/dll's to create/edit/extract SQX archives freely 
+as long as you respect my End User Licence: You must not claim that SQX is your 
+property and you must not missuse my/our trade marks (see sqx-sdk.pdf).
+
+Especially those users archiving/compressing large amounts of data
+may be interested in complete specifications and sample source code, just for 
+them to be sure that they can always decompress their data, even if a certain 
+vendor stops selling a certain archiver. In case of corrupted medias for 
+example it is rather helpful to have complete specs and sample source at hand
+in order to decompress as much of the undamaged portions as possible.
+
+
+
+
+1.1 Disclaimer
+---------------
+
+Although I will attempt to supply current and accurate information relating 
+to the SQX archive format and compression algorithms, the possibility of 
+errors can not be eliminated.
+
+This documentation and the related source code are distributed "as is".
+No warranty of any kind is expressed or implied. I will not be liable for
+any data loss, damages, loss of profits or any other kind of loss for the
+use or missuse of this documentation or the related source code.
+
+
+
+
+2 Concepts
+===========
+
+The primary compressor of the SQX archiver is a LZH variant extended by 
+several other compressors in order to improve the compression or to improve
+the compression for a certain type of data.
+
+It was my goal to develope an extremly fast archiver for the daily backup 
+tasks as well as for situations where one may need archives as small as possible,
+for example for Internet Distribution of Software etc., therefore the SQX
+format allows several settings to improve compression or speed.
+
+The LZH compressor of the SQX archiver can use LZ dictionaries from 32K up
+to 4 MB, running in either non-solid or solid mode. Using a 32K dictionary
+one can exspect very fast compression, usually a little bit better than other
+archivers using dictionaries around 32K. Using dicionaries >= 1024 KB and 
+compressing in solid mode can improve the compression very well, especially
+when compression large amounts of data or when compressing a lot of similar 
+files.
+
+Some types of data or files may be transformed into data more suitable for
+a LZH compressor, they may be passed also directly to another compressor
+inbuilt in the SQX archiver.
+
+Audio (wav) files for example can be passed to a special audio compressor
+inbuilt in SQX. Win32 Executables can preprocessed in such a way that a 
+special encoder transforms the relative adresses followed by a relative call 
+instruction to absolute adresses. The simple diagramm below illustrates the 
+dataflow inside the compressor of the SQX archiver.
+
+
+
+          _________________________________________
+         |                                         |
+         |            Uncompressed Data            |
+         |_________________________________________|
+            |                 |                 |
+            |                 |                 |
+            |                 |                 |
+            |        ____________________       |
+            |       |                    |      |
+            |       | Data Preprocessing |      |
+            |       |     (Optional)     |------|
+            |       |____________________|      |
+            |                 |                 |
+ _______________     ____________________     _______________
+|               |   |                    |   |               |   
+|     Audio     |   |   LZH Compressor   |   |  Multimedia   |
+|  Compressor   |   |                    |   |  Compressor   |
+|_______________|   |____________________|   |_______________|
+            |                 |                 |
+            |                 |                 |
+          _________________________________________
+         |                                         |
+         |            Data Encryption              |
+         |               (Optional)                |
+         |_________________________________________|
+                              |                 
+                     ____________________       
+                    |                    |      
+                    |      Archive       |      
+                    |____________________|      
+
+
+Whether a certain file or data block is passed to a special compressor
+inbuilt in SQX or not is left to the archiver itself (or its settings).
+There is no need for a compatible archiver to support all compression 
+methods or all transform methods since the design of the SQX compressor
+is modular. However, a compatible dearchiver must support all (de)compression
+methods and all (de)transforms.
+
+
+2.1 LZ77 Coder
+---------------
+
+The SQX archive format allows LZ dictionary sizes from 32K up to 4 MB. The
+size of a dictionary is always a power of two, therefore only the following 
+dictionary size are valid:
+
+32K, 64K, 128K, 256K, 512K, 1024K, 2048K, 4096K
+
+The minimal length for a match is two, the maximal length for a match is 
+16640. Since the output of the LZ77 is further grouped and compressed by 
+different huffmann coders there are some rules for two, three and four byte
+matches:
+
+The maximal distance for a match of the length two is 255
+The maximal distance for a match of the length three is 16383
+The maximal distance for a match of the length four is 262143
+
+The coding of the LZ77 output is described in chapter 3. A sample for a 
+compatible LZ77 decompressor is given in [UARDE.C].
+
+
+2.2 Repeated Offsets
+---------------------
+
+The SQX LZH compressor maintains a list with five repeated offsets, where
+the first repeated offset also includes the length of the last coded match. 
+To keep the update process for the list as simple as possible it is done via 
+a running index. The repeated offset including the length of the last coded 
+match is only updated if a repeated match is coded.
+
+A compatible compressor/decompressor must reset the list with the repeated
+offsets for every file it compresses/decompresses (except when running in
+solid mode) or after every multimedia block that has been coded/decoded.
+
+The following code snippets illustrate the update/reset process:
+
+UWORD32 uLastLen;
+UWORD32 uLastDist;
+
+UWORD32  PrevDists[4];
+UWORD32  uPrevDistIndex;
+
+void ResetPrevDists(void)
+{
+    memset(PrevDists,0,sizeof(PrevDists));
+    uPrevDistIndex = 0;
+    uLastLen = uLastDist = 0;
+}
+
+#define UPDATEREPDISTS(MatchPos) PrevDists[uPrevDistIndex++ & 3] = MatchPos;
+
+
+2.3 Transform Coders
+---------------------
+
+Several transforms may be applied to the data before passing it to the range coder
+or to the LZH compressor. The SQX format supports one up to four 8-bit channels 
+or one 16-bit channel transformed by delta coders. The transformed data may be 
+directly compressed with one up to four different range coder models or it may 
+be passed to the lz coder.
+
+The Relative Call Instruction Transform should be applied only to executables 
+that were compiled and linked for IA32 machines. 
+
+Either of the above transforms is reversible or lossless. Any transform can 
+and must undone when decompressing a file.
+
+It is possible to apply both the Relative Call Instruction Transform and 
+delta  transforms to the data. On compressing, the Relative Call Instruction
+Transform is the first transform. On decompressing it is the last transform.
+
+The Relative Call Instruction Transform starts always at offset zero in an
+executable file where the delta transform may start anywhere in a file.
+
+The settings (# of coders, start values etc) for the delta coders are stored
+in the compressed data if the transformed data is directly passed to the range 
+coder. If the delta transform is applied to the data  before passing it to 
+the lz coder a special block follows the last block related to the file header.
+This special block describes the settings of the delta coders as well as the 
+offset where the transform starts.
+
+
+
+2.4 Huffmann Coders
+--------------------
+
+The LZH compressor can use either three or four huffmann trees to compress
+the output of the lz coder. Whether to use three or four huffmann trees is
+up to the compressor, there is no specific rule when to use three or four
+trees.
+
+The SQX format requires one huffmann tree to encode the literals, special 
+codes and match lengths. A second tree is used to encode the match lengths 
+for the repeated offsets, and the match distances are encoded with a third 
+tree.
+
+Actually, the SQX compressor does not encode the match lengths and match 
+distances directly since this would require rather large symbol tables.
+Instead, it maps the matches and distances to be encoded to a small set
+of codes describing the matches and distances in order to improve the 
+compression.
+
+
+3 The LZH Compressor
+=====================
+
+SQX compresses most files/data with its LZH compressor. Both LZ77 coders and
+Huffmann trees are well known in data compression and are not described here.
+
+The LZ77 sends the literals or length/distances pairs for further compression
+to the huffmann coders. Literals are always encoded without mapping, most
+length/distances pairs are encoded with mapping. The match lengths are grouped
+in three major categories: Matches of the length two, matches of the length 
+three and matches longer than three bytes.
+
+The huffmann tree used to code literals, special codes and match lengths has
+310 elements:
+
+Table 3.1
+ __________________________________________________________________________________________
+|            |                        |            |           |                           |
+|    Code    |          Type          | # of Codes | Base Code |         Mapping           |    
+|____________|________________________|____________|___________|___________________________|
+|            |                        |            |           |                           |
+| 0 - 255    |    Literals            |    256     |     -     |        No Mapping         |            
+| 256 - 260  | Repeated Offsets       |    1 + 4   |  256,257  |        No Mapping         |  
+| 261 - 268  | Matches of Length 2    |    8       |  261      |        All Codes          |
+| 269 - 283  | Matches of Length 3    |    15      |  269      | Codes > 1 (see table 3.2) |
+| 284 - 308  | Matches longer 3 Bytes |    25      |  284      | Codes > 7 (see table 3.2) |
+| 309        |         -              |    -       |           |            -              |
+|____________|________________________|____________|___________|___________________________|
+
+
+Table 3.2
+ ____________________________________________________________________________________________
+|        ||                          ||                          ||                          |
+|        ||   Matches of Length 2    ||   Matches of Length 3    ||    All other Matches     |
+|--------------------------------------------------------------------------------------------|
+|        ||            |             ||            |             ||            |             |
+| Code   || Extra Bits | Base Offset || Extra Bits | Base Offset || Extra Bits | Base Length |
+|--------------------------------------------------------------------------------------------|
+|   0    ||  2         |  0          ||  0         |  0          ||  0         |  0          |
+|   1    ||  2         |  4          ||  0         |  0          ||  0         |  0          |
+|   2    ||  3         |  8          ||  1         |  2          ||  0         |  0          |
+|   3    ||  4         |  16         ||  2         |  4          ||  0         |  0          |
+|   4    ||  5         |  32         ||  3         |  8          ||  0         |  0          |
+|   5    ||  6         |  64         ||  4         |  16         ||  0         |  0          |
+|   6    ||  6         |  128        ||  5         |  32         ||  0         |  0          |
+|   7    ||  6         |  192        ||  6         |  64         ||  0         |  0          |
+|   8    ||  -         |   -         ||  7         |  128        ||  1         |  8          |
+|   9    ||  -         |   -         ||  8         |  256        ||  1         |  10         |
+|   10   ||  -         |   -         ||  9         |  512        ||  2         |  12         |
+|   11   ||  -         |   -         ||  10        |  1024       ||  2         |  16         |
+|   12   ||  -         |   -         ||  11        |  2048       ||  2         |  20         |
+|   13   ||  -         |   -         ||  12        |  4096       ||  3         |  24         |
+|   14   ||  -         |   -         ||  13        |  8192       ||  3         |  32         |
+|   15   ||  -         |   -         ||  -         |    -        ||  3         |  40         |
+|   16   ||  -         |   -         ||  -         |    -        ||  4         |  48         |
+|   17   ||  -         |   -         ||  -         |    -        ||  4         |  64         |
+|   18   ||  -         |   -         ||  -         |    -        ||  4         |  80         |
+|   19   ||  -         |   -         ||  -         |    -        ||  5         |  96         |
+|   20   ||  -         |   -         ||  -         |    -        ||  5         |  128        |
+|   21   ||  -         |   -         ||  -         |    -        ||  5         |  160        |
+|   22   ||  -         |   -         ||  -         |    -        ||  5         |  192        |
+|   23   ||  -         |   -         ||  -         |    -        ||  5         |  224        |
+|   24   ||  -         |   -         ||  -         |    -        ||  14        |  257        |
+|____________________________________________________________________________________________|
+
+
+Table 3.3
+ ____________________________________________________________________________________________
+|                                                                                            |
+|        Distance Codes, Extra Bits and Base Offsets for different Dictionary Sizes          |
+|____________________________________________________________________________________________|
+|        ||                          ||                          ||                          |
+|        ||       32K - 1024K        ||          2048K           ||          4096K           |
+|--------------------------------------------------------------------------------------------|
+|        ||            |             ||            |             ||            |             |
+| Code   || Extra Bits | Base Offset || Extra Bits | Base Offset || Extra Bits | Base Offset |
+|--------------------------------------------------------------------------------------------|
+|   0    ||  0         |  0          ||  0         |  0          ||  0         |  0          |
+|   1    ||  0         |  0          ||  0         |  0          ||  0         |  0          |
+|   2    ||  0         |  0          ||  0         |  0          ||  0         |  0          |
+|   3    ||  0         |  0          ||  0         |  0          ||  0         |  0          |
+|   4    ||  1         |  4          ||  1         |  4          ||  1         |  4          |
+|   5    ||  1         |  6          ||  1         |  6          ||  1         |  6          |
+|   6    ||  2         |  8          ||  2         |  8          ||  2         |  8          |
+|   7    ||  2         |  12         ||  2         |  12         ||  2         |  12         |
+|   8    ||  3         |  16         ||  3         |  16         ||  3         |  16         |
+|   9    ||  3         |  24         ||  3         |  24         ||  3         |  24         |
+|   10   ||  4         |  32         ||  4         |  32         ||  4         |  32         |
+|   11   ||  4         |  48         ||  4         |  48         ||  4         |  48         |
+|   12   ||  5         |  64         ||  5         |  64         ||  5         |  64         |
+|   13   ||  5         |  96         ||  5         |  96         ||  5         |  96         |
+|   14   ||  6         |  128        ||  6         |  128        ||  6         |  128        |
+|   15   ||  6         |  192        ||  6         |  192        ||  6         |  192        |
+|   16   ||  7         |  256        ||  7         |  256        ||  7         |  256        |
+|   17   ||  7         |  384        ||  7         |  384        ||  7         |  384        |
+|   18   ||  8         |  512        ||  8         |  512        ||  8         |  512        |
+|   19   ||  8         |  768        ||  8         |  768        ||  8         |  768        |
+|   20   ||  9         |  1024       ||  9         |  1024       ||  9         |  1024       |
+|   21   ||  9         |  1536       ||  9         |  1536       ||  9         |  1536       |
+|   22   ||  10        |  2048       ||  10        |  2048       ||  10        |  2048       |
+|   23   ||  10        |  3072       ||  10        |  3072       ||  10        |  3072       |
+|   24   ||  11        |  4096       ||  11        |  4096       ||  11        |  4096       |
+|   25   ||  11        |  6144       ||  11        |  6144       ||  11        |  6144       |
+|   26   ||  12        |  8192       ||  12        |  8192       ||  12        |  8192       |
+|   27   ||  12        |  12288      ||  12        |  12288      ||  12        |  12288      |
+|   28   ||  13        |  16384      ||  13        |  16384      ||  13        |  16384      |
+|   29   ||  13        |  24576      ||  13        |  24576      ||  13        |  24576      |
+|   30   ||  14        |  32768      ||  14        |  32768      ||  14        |  32768      |
+|   31   ||  14        |  49152      ||  14        |  49152      ||  14        |  49152      |
+|   32   ||  15        |  65536      ||  15        |  65536      ||  15        |  65536      |
+|   33   ||  15        |  98304      ||  15        |  98304      ||  15        |  98304      |
+|   34   ||  16        |  131072     ||  16        |  131072     ||  16        |  131072     |
+|   35   ||  16        |  196608     ||  16        |  196608     ||  16        |  196608     |
+|   36   ||  16        |  262144     ||  17        |  262144     ||  17        |  262144     |
+|   37   ||  16        |  327680     ||  17        |  393216     ||  17        |  393216     |
+|   38   ||  16        |  393216     ||  17        |  524288     ||  18        |  524288     |
+|   39   ||  16        |  458752     ||  17        |  655360     ||  18        |  786432     |
+|   40   ||  16        |  524288     ||  17        |  786432     ||  18        |  1048576    |
+|   41   ||  16        |  589824     ||  17        |  917504     ||  18        |  1310720    |
+|   42   ||  16        |  655360     ||  17        |  1048576    ||  18        |  1572864    |
+|   43   ||  16        |  720896     ||  17        |  1179648    ||  18        |  1835008    |
+|   44   ||  16        |  786432     ||  17        |  1310720    ||  18        |  2097152    |
+|   45   ||  16        |  851968     ||  17        |  1441792    ||  18        |  2359296    |
+|   46   ||  16        |  917504     ||  17        |  1572864    ||  18        |  2621440    |
+|   47   ||  16        |  983040     ||  17        |  1703936    ||  18        |  2883584    |
+|   48   ||  -         |    -        ||  17        |  1835008    ||  18        |  3145728    |
+|   49   ||  -         |    -        ||  17        |  1966080    ||  18        |  3407872    |
+|   50   ||  -         |    -        ||  -         |     -       ||  18        |  3670016    |
+|   51   ||  -         |    -        ||  -         |     -       ||  18        |  3932160    |
+|   52   ||  -         |    -        ||  -         |     -       ||  -         |     -       |
+|   53   ||  -         |    -        ||  -         |     -       ||  -         |     -       |
+|   54   ||  -         |    -        ||  -         |     -       ||  -         |     -       |
+|   55   ||  -         |    -        ||  -         |     -       ||  -         |     -       |
+|____________________________________________________________________________________________|
+
+
+The huffmann tree used to code the match lengths for the repeated offsets 
+has 25 elements, the mapping for the codes is shown in table 3.2 (All other
+Matches). One should notice that these matches are not grouped into the 
+categories mentioned above.
+
+There are always 56 elements int he tree used to code the match distances. 
+The compressor has to choose a set of codes depending on the dictionary 
+size. The possible codes are listed in table 3.3.
+
+
+3.1 Compressing the LZ Coder Output
+------------------------------------
+
+The outout from the lz coder is always compressed in the following order:
+
+1. Literal or repeated offset or match length + extra bits for this  (tree #1)
+   match                                                             
+2. if 1. was a repeated offset the match length for the repeated     (tree #2)
+   offset + extra bits for this match                                
+   if 1. was a match the distance for this match + extra bits for    (tree #3)
+   the distance.                                                     
+
+The codes for match lengths and distances are computed in the following way:
+   
+  If NewDist = code n and the base offset for code n is zero 
+  then DistanceCode = NewDist. 
+
+  If NewLen = code n and the base length for code n is zero then 
+  MatchCode = NewLen.
+
+  if MatchLen > 257 MatchCode = 24 (table 3.2)
+
+
+  for matches of length 2   NewDist = Distance - 1
+                            MatchCode = first code with an offset >= NewDist
+							(table 3.2).
+							MatchCode = MatchCode + BaseCode (table 3.1)
+
+  for matches of length 3   NewDist = Distance - 1
+                            MatchCode = first code with an offset >= NewDist
+							(table 3.2).
+							MatchCode = MatchCode + BaseCode (table 3.1)
+
+  for matches of repeated   NewLen = MatchLen - 2
+  offsets                   if match distance > 16383 NewLen = NewLen -1
+                            if match distance > 262143 NewLen = NewLen -1
+                            MatchCode = first code with base length >= NewLen
+							(table 3.2).
+
+  for matches longer than   NewLen = MatchLen - 4
+  3 bytes                   if match distance > 262143 NewLen = NewLen -1
+                            MatchCode = first code with base length >= NewLen
+							(table 3.2).
+							MatchCode = MatchCode + BaseCode (table 3.1)
+                            
+  for match distances       NewDist = Distance - 1
+                            DistanceCode = first code with an offset >= NewDist
+							(table 3.3).
+
+The values to code with extra bits are computed in the following way:
+   
+  for matches of length 2   compute the MatchCode
+                            extra bits = extra bits [MatchCode] (table 3.2)
+                            value = NewDist - base offset [MatchCode]
+
+  for matches of length 3   compute the MatchCode
+                            extra bits = extra bits [MatchCode] (table 3.2)
+                            value = NewDist - base offset [MatchCode]
+
+  for matches of repeated   compute the MatchCode
+  offsets                   extra bits = extra bits [MatchCode] (table 3.2)
+                            value = NewLen - base length [MatchCode]
+
+  for matches longer than   compute the MatchCode
+  3 bytes                   extra bits = extra bits [MatchCode] (table 3.2)
+                            value = NewLen - base length [MatchCode]
+
+  for matches longer than   extra bits = 14 (table 3.2)
+  257 bytes                 value = MatchLen - 257
+                            
+  for match distances       compute the DistanceCode
+                            extra bits = extra bits [DistanceCode] (table 3.3)
+                            value = NewDist - base offset [DistanceCode]
+
+If CurrentMatchLen is equal to LastMatchlen and CurrentMatchDistance is 
+equal to LastMatchDistance the code 256 is send to the huffmann coder 
+(tree #1). This is the first of the repeated offsets. Again, LastMatchlen 
+and LastMatchDistance are only updated if one of the last four repeated 
+offsets is coded.
+
+If CurrentMatchDistance is in the list of the remaining four repeated offsets
+a repeated offset/match length pair is coded. Since the base code for the last 
+four repeated offsets is 257, code 257 + zero-based index of the repeated 
+offset is sent to tree #1, the code for the match length is sent to tree #2 and
+then the extra bits for the match are written (if required).
+
+Encoding with four trees is the same like the encoding with three trees, except 
+that the compressor uses two trees to encode the literals, special codes and 
+match lengths.
+
+When using four huffmann trees all literals, special codes and match lengths
+(plus the first code) smaller than a certain 'bound value' are encoded with 
+the first main tree (tree #1a), all other codes are compressed with the second 
+main tree (tree #1b). The bound value is to be computed by the compressor 
+itself and is stored in the compressed data.
+
+
+3.2 Compressing the Bit Lengths
+--------------------------------
+
+SQX uses canonical huffman trees to represent elements within the 
+trees. Using these trees there is no need to store the trees itself in the 
+compressed data. A decompressor needs only the bit lengths to reconstruct 
+identical trees. The bit lengths for the trees #1, #2 and #3 must not exceed
+15 bits.
+
+The bit lengths of the three or four main trees are again compressed with 
+a single huffmann tree or a simple extra coding scheme or both. The extra 
+coding uses increment, decrement and absolute value flags to describe the 
+coded bit lengths.
+
+The huffmann tree used to compress the bit lengths has 19 elements, the first
+16 elements represent the bit lengths themselves (0 - 15), the last three
+elements are base codes for a simple rle scheme. Decoding sample:
+  
+  Code 16 : read two more bits and copy the previous bit length
+            3 + value(two more bits) times
+  
+  Code 17 : read three more bits and copy the bit length zero
+            3 + value(three more bits) times
+  
+  Code 18 : read seven more bits and copy the bit length zero
+            11 + value(seven more bits) times
+
+
+The extra coding scheme works as follows:
+  
+  Write the first bit lenth (4 bits)
+
+  LastBitLength = first bit length
+  
+  Loop until all bit lengths are written
+
+    if current bit length = LastBitLength
+	  write the value 0x0 (1 bit)
+    else if current bit length = LastBitLength + 1
+	  write the value 0x2 (2 bits)
+    else if current bit length = LastBitLength + 2
+	  write the value 0xD (4 bits)
+    else if current bit length = LastBitLength - 1
+	  write the value 0xC (4 bits)
+	else write the value 0x7 (3 bits), write current bit length (4 bits)
+
+	LastBitLength = current bit length
+
+  end loop
+  
+  
+When using three huffmann trees the bit lengths may be compressed either
+with a tree or the extra coding scheme. When using four trees, tree #1a 
+and #1b are compressed with a huffmann tree and tree #2 and #3 are
+compressed with the extra coding scheme.
+
+
+3.3 The Format of a compressed LZ Block
+----------------------------------------
+
+Each compressed block in a SQX archive has its own bit header describing the
+compressed block itself. Neither the bit header nor the compressed data is
+aligned to a certain boundary. The first bit header follows immediately after
+the last header releated to a file header.
+
+ _______________________________________________________________________________________
+|         |                        |                                                    |
+| Bit No. |         Value          |                 Type, Description                  |    
+|_________|________________________|____________________________________________________|
+|         |                        |                                                    |
+|  0      | Always 0 for LZ Blocks | Block Type                                         |            
+|  1 - 15 | Variable               | Entries in this block (Literals,Match/Dist Pairs)  |  
+|  16     | 0 or 1                 | # of Trees (0 for three trees, 1 for four trees)   |
+|_________|________________________|____________________________________________________|
+
+If bit 16 is set to zero (compressor were using three huffmann trees), bit 17 
+describes whether the bit lengths were compressed with a single tree (bit 17
+set to zero) or with the extra coding scheme (bit 17 set to one).
+
+If bit 16 is set to one the border value used to split tree #1 into tree #1a 
+and #1b is stored in the next nine bits.
+
+
+Figure 3.1, a compressed lz block, the compressor
+used three huffmann trees, the bit lengths were
+compressed with a single tree.
+ _______________________________________________
+|                                               |
+|                  Bit Header                   |    
+|_______________________________________________|
+|                                               |
+| Bit lenghts (each 4 bits) of the tree used to |            
+| compress the bit lengths of tree #1, #2, #3   |  
+|_______________________________________________|
+|                                               |
+| Compressed bit lenghts of tree #1, #2, #3     |            
+|_______________________________________________|
+|                                               |
+|                Compressed data                |            
+|_______________________________________________|
+
+ 
+Figure 3.2, a compressed lz block, the compressor
+used three huffmann trees, the bit lengths were
+compressed with the extra coding scheme.
+ _______________________________________________
+|                                               |
+|                  Bit Header                   |    
+|_______________________________________________|
+|                                               |
+| Compressed bit lenghts of tree #1, #2, #3     |            
+| encoded with the extra coding scheme          |  
+|_______________________________________________|
+|                                               |
+|                Compressed data                |            
+|_______________________________________________|
+
+ 
+Figure 3.3, a compressed lz block, the compressor
+used four huffmann trees.
+ _______________________________________________
+|                                               |
+|                  Bit Header                   |    
+|_______________________________________________|
+|                                               |
+| Bit lenghts (each 4 bits) of the tree used to |            
+| compress the bit lengths of tree #1a and #1b  |  
+|_______________________________________________|
+|                                               |
+| Compressed bit lenghts of tree #1a,#1b        |            
+|_______________________________________________|
+|                                               |
+| Compressed bit lenghts of tree #2, #3         |            
+| encoded with the extra coding scheme          |  
+|_______________________________________________|
+|                                               |
+|                Compressed data                |            
+|_______________________________________________|
+
+
+
+
+4 The Multimedia Compressor
+============================
+
+Datablocks may be transformed with delta coders and compressed with one 
+up to four different range coder models. The delta coders use the 
+following equations to compute the delta codes (errors)
+
+  1.) E0 = Data[n]                  (only 8 bit coders)
+  2.) E1 = Data[n - 1] - Data[n]      
+  3.) E2 = Data[n - 2] - Data[n]
+  4.) E3 = Data[n - 3] - Data[n]      
+  5.) E4 = Data[n - 4] - Data[n]    (only 8 bit coders)
+
+The delta coders are not really adaptive, but they can adjust themselves
+in a certain range. For example, it possible that the first n bytes of
+a data block are encoded with 1.) and the last n bytes of data block
+are encoded with 3.). There is no control information passed to the 
+decoder. Instead, the encoded data is monitored in order to choose the
+best equation for a certain range of data. A complete sample for the delta
+coders used in SQX is given in [T_CODER.C].
+
+The data transformed must not wrap the lz dictionary. Also, the size
+of a data block to be transformed or encoded with range coders is 
+aligned to a multiple of coders used, the remaining bytes are left 
+unencoded.
+
+The transformed data is compressed with a range coder in one up to four 
+different range coder models. Please refer to [RCODER.C] for a complete 
+sample of the range coder used by SQX.
+
+I would like to thank Mr. Mikael Lundqvist who presented his work
+"A fast Range Coder" to the compression community. The range coder
+used by SQX is based on the coder by Mr. Lundqvist.
+
+
+4.1 The Format of a compressed MM Block
+----------------------------------------
+
+Figure 4.1, bit header of a compressed multimedia block
+ _______________________________________________________________________________________
+|         |                        |                                                    |
+| Bit No. |         Value          |                 Type, Description                  |    
+|_________|________________________|____________________________________________________|
+|         |                        |                                                    |
+|  0      | Always 1 for MM Blocks | Block Type                                         |            
+|  1      | 0 or 1                 | Coder Type, 0 = 8 bit coders, 1 = 16 bit coder     |  
+|  2 - 4  | 0 - 4                  | Start value for delta coder(s)                     |
+|  5 - 6  | 0 - 3                  | No. of delta coders used + 1                       |
+|  7 - 8  | 0 - 3                  | No. of range coders used + 1                       |
+|  9 - 23 | Variable               | Entries in this block                              |  
+|_________|________________________|____________________________________________________|
+
+
+Figure 4.2, a compressed multimedia block
+ _______________________________________________
+|                                               |
+|                  Bit Header                   |    
+|_______________________________________________|
+|                                               |
+|                Compressed data                |            
+|_______________________________________________|
+
+
+
+
+5 The Audio Compressor
+=======================
+
+Supported audio files are compressed with a 8 bit or 16 bit lossless audio 
+compressor. Both audio compressors are using a set of fixed polinomial 
+predictors to compute an error signal for the audio signal of each channel. 
+The 8 bit audio compressor uses one or two huffmann trees to compress the 
+error signal(s), the 16 bit compressor uses a Rice-Golomb coder.
+
+The 8 bit compressor groups the samples in blocks where the 16 bit compressor
+groups the samples in small frames. The standard size for a frame is 384 
+samples, but other sizes are possible as well.
+
+The overall format of a compressed audio file is stored in a special block
+following the last block related to a file header. The sizes and settings
+for the compressed blocks or frames are stored in bit headers and sub
+headers. A complete sample for a SQX audio coder is given in [CX_AUDIO.C].
+
+
+5.1 The Format of a compressed Audio Block
+-------------------------------------------
+
+Figure 5.1, bit header of a compressed audio block (8 bit compressor)
+ _______________________________________________________________________________________
+|         |                        |                                                    |
+| Bit No. |         Value          |                 Type, Description                  |    
+|_________|________________________|____________________________________________________|
+|         |                        |                                                    |
+|  0 - 13 | Variable               | Entries in this block                              |  
+|  [14]   | 0 or 1                 | 0 =  1 tree, 1 = 2 trees (only for stereo data)    |  
+|_________|________________________|____________________________________________________|
+
+
+Figure 5.2, bit header of a compressed audio block (16 bit compressor)
+ _________________________________________________________________________________________
+|           |                        |                                                    |
+| Bit No.   |         Value          |                 Type, Description                  |    
+|___________|________________________|____________________________________________________|
+|           |                        |                                                    |
+|  0        | 0 or 1                 | Block Type, 0 = std frame size, 1 = any frame size |            
+|  1 - 3    | Variable               | Inter Channel Decorrelation *                      |  
+| [4 - 14]  | Variable               | Frame size, only present if Block Type = 1         |
+|___________|________________________|____________________________________________________|
+
+                     (* 0 = none, 1 = midpoint, 2 = half midpoint)
+
+
+Figure 5.3, bit header of a compressed frame (16 bit compressor)
+ _________________________________________________________________________________________
+|           |                        |                                                    |
+| Bit No.   |         Value          |                 Type, Description                  |    
+|___________|________________________|____________________________________________________|
+|           |                        |                                                    |
+|  0 - 2    | Variable               | Predictor # used for this frame                    |            
+|  3 - 6    | Variable               | Shift value (k) used by Rice-Golomb coder          |  
+|___________|________________________|____________________________________________________|
+
+
+
+Figure 5.4, a compressed audio block (8 bit compressor)
+ _______________________________________________
+|                                               |
+|                  Bit Header                   |    
+|_______________________________________________|
+|                                               |
+| Bit lenghts (each 4 bits) of the tree used to |            
+| compress the bit lengths of tree 1 [and 2]    |  
+|_______________________________________________|
+|                                               |
+| Compressed bit lenghts of tree 1 [and 2]      |            
+|_______________________________________________|
+|                                               |
+|                Compressed data                |            
+|_______________________________________________|
+
+
+Figure 5.5, a compressed stereo audio block (16 bit compressor)
+ _______________________________________________
+|                                               |
+|            Bit Header for a Block             |    
+|_______________________________________________|
+|                                               |
+|           Bit Header for left Frame           |    
+|_______________________________________________|
+|                                               |
+|         Compressed data of left Frame         |            
+|_______________________________________________|
+|                                               |
+|           Bit Header for right Frame          |    
+|_______________________________________________|
+|                                               |
+|         Compressed data of right Frame        |            
+|_______________________________________________|
+
+
+
+
+6 Data Encryption
+==================
+
+SQX encrypts the compressed data with the AES (Rijndael) encryption algorithm,
+developed by Joan Daemen and Vincent Rijmen. This algorithm was selected by 
+the National Institute of Standards and Technology (NIST) to become the new 
+standard for secure data encryption.
+
+The encryptor used by SQX is based on the Rijndael ANSI C Reference Code. The
+original Rijndael ANSI C Reference Code can be found in the "CRYPT" directory
+of the SQX source code distribution.
+
+SQX uses 128 bit keys and a block size of 128 bit to encrypt the compressed 
+data. The password supplied by the user is hashed with the MD5 algorithm
+(by RSA Data Security, Inc).
+
+The optional encrytion of the archive headers is done with the Blowfish
+encrytion algorithm, developed by Bruce Schneier.
+
+Both the reference implementations of the MD5 and Blowfish encryption 
+algorithm can be found in the "CRYPT" directory as well.
+
+
+
+
+7 The SQX Archive Format
+=========================
+
+The size of an SQX archive or a file in a SQX archive is limited only by the
+OS where the archiver is running under. In theory, SQX archives may be up to
+2 ^ 63 bytes where the number of files in a SQX archive is virtually unlimited.
+
+SQX archives can span multiple medias (volumes). If a file in a multivolume
+SQX archive is split over multiple medias each part of the splitted file has
+it own file header (7.2 The Archive File Header). The ORIG_SIZE (ORIG_SIZE64) 
+field of each file header is set to the umcompressed size of the file (this is 
+known in advance), the COMP_SIZE (COMP_SIZE64) field of each file header is set
+to the compressed size of the corresponding file chunk and the FILE_CRC32 field
+of the last file header of a splitted file is set to the crc over the file data.
+
+File headers, directory headers and blocks or headers related to File headers 
+and directory headers should not span multiple volumes.
+
+Each SQX archive consists of a virtually unlimited number of variable length
+blocks and subblocks. There is a fixed order for certain block types and 
+subblocks, and some block or subblock types may be only present if another 
+block type  is present (e.g. file blocks and data recovery records)
+The first block in an SQX archive must be the archive main header followed
+by any valid block or subblock. 
+
+Blocks and subblocks begin with the following fields:
+
+BLOCK_CRC16     2 bytes     		CRC of total block or block part
+BLOCK_TYPE      1 byte      		Block type
+BLOCK_FLAGS     2 bytes     		Block flags
+BLOCK_SIZE      2 bytes				Block size, excluding block related data
+
+The block types from 0 - 128 (including) are reserved, all other block types 
+are free for 3rd party use. Currently, the following block types are valid 
+SQX block types:
+
+BLOCK_TYPE = 0x52          archive main header 
+BLOCK_TYPE = 0x44          archive file block  
+BLOCK_TYPE = 0x56          archive directory block  
+BLOCK_TYPE = 0x53          archive 'end of archive' block 
+BLOCK_TYPE = 0x43          archive comment block 
+BLOCK_TYPE = 0x58          archive data recovery record 
+BLOCK_TYPE = 0x41          archive authenticity information 
+BLOCK_TYPE = 0x49          archive internal block
+
+If the archive headers (blocks) are encrypted an unsigned 2 byte value is 
+prepended to each header describing the encrypted size. All header data
+is encrypted (including comments) if the headers are encrypted.
+
+The size of an archive archive comment block must not exceed 8k, all other
+blocks must not exceed 2k (not counting the block related data).
+
+Currently, the following compression methods are supported by SQX (the
+ARC_METHOD field in the file header):
+
+#define SQX_C1_STORED				0x00	//- stored (no compression), compression type 1
+#define SQX_C1_NORMAL				0x01	//- compressed, normal compression, compression type 1
+#define SQX_C1_GOOD					0x02	//- compressed, good compression, compression type 1
+#define SQX_C1_HIGH					0x03	//- compressed, high compression, compression type 1
+#define SQX_C1_BEST					0x04	//- compressed, best compression, compression type 1
+#define SQX_C1_AUDIO				0x05	//- true audio (wav, pcm) compression
+
+All values are stored in Intel low-byte/high-byte order.
+
+
+7.1 The Archive Main Header
+----------------------------
+
+BLOCK_CRC       crc over block (BLOCK_TYPE to RESERVED3)
+2 bytes
+
+BLOCK_TYPE      0x52
+1 byte
+
+BLOCK_FLAGS     bit -- 	meaning
+2 bytes         0       always set to 0																	
+                1       if set, the headers of the archive file block are encrypted						
+                2       if set, the archive is a solid archive											
+                3       if set, the archive is a multi volume archive									
+                4       if set, the archive is the last volume of a a multi volume archive				
+                5       if set, the archive has a main comment											
+                6       reserved, must be set to 0
+                7       reserved, must be set to 0
+                8       reserved, must be set to 0
+                9       reserved, must be set to 0		                                                
+                10      reserved, must be set to 0		                                                
+                11      reserved, must be set to 0		                                                
+                12      reserved, must be set to 0		                                                
+                13      AV flag, if set, the archive was signed and contains AV data                    
+                14      reserved, must be set to 0
+                15      reserved, must be set to 0
+
+
+BLOCK_SIZE      block size from BLOCK_CRC to RESERVED3
+2 bytes	
+
+SQX_ID          "-sqx-"	
+5 bytes
+
+ARC_VER         SQX archiver version number used to create this archive
+1 byte
+
+EXTRA_1         Reserved, must be set to 0
+2 bytes
+
+EXTRA_2         Reserved, must be set to 0
+4 bytes
+
+RESERVED1       Reserved, must be set to 0
+2 bytes
+
+RESERVED3       Reserved, must be set to 0
+2 bytes
+
+RESERVED3       Reserved, must be set to 0
+2 bytes
+
+[archive comment block]   	it is only present if bit 5 in BLOCK_FLAGS is set 
+(variable)
+
+
+7.2 The Archive File Header
+----------------------------
+
+BLOCK_CRC       crc over block (BLOCK_TYPE to FILE_NAME)
+2 bytes         
+
+BLOCK_TYPE      0x44
+1 byte
+
+BLOCK_FLAGS     bit --  meaning
+2 bytes         0       always set to 0
+                1       if set, the archive file is encrypted													
+                2       solid flag, if set, statistics and data from previous files were used on compressing	
+                3       if set, the archive file is continued from previous volume								
+                4       if set, the archive file is continued on next volume									
+                5       if set, the archive file has a comment													
+                6       if set, the file name was converted to the ASCII charset (Win32)
+                7       if set, either the archive file, the orig. file or both are larger than 4GB				
+                8   \
+                9   ->  bits 10 9 8 -- 	meaning
+                10  /	-----------------------------------------
+                              0 0 0     lz dictionary size is 32K
+                              0 0 1     lz dictionary size is 64K
+                              0 1 0     lz dictionary size is 128K
+                              0 1 1     lz dictionary size is 256K
+                              1 0 0     lz dictionary size is 512K
+                              1 0 1     lz dictionary size is 1MB
+                              1 1 0     lz dictionary size is 2MB
+                              1 1 1     lz dictionary size is 4MB
+							  
+
+                11      reserved, must be set to 0
+                12      reserved, must be set to 0
+                13      reserved, must be set to 0
+                14      reserved, must be set to 0
+                15      if set, another block or subblock follows (has no meaning for comments)												
+
+BLOCK_SIZE      size of block including file name
+2 bytes
+
+COMP_FLAGS      bit -- 	meaning
+1 byte          0       if set, immediatly after the last block related to this block 
+                        follows a two byte value that describes some addtional compressor 
+                        features (see EXTRA_COMPRESSOR).
+
+EXTRA_FLAGS     reserved, must be set to 0
+2 bytes
+
+OS_FILE_SYS     OS/filesys the archiver were running under when compressing this file 
+1 byte           
+
+ARC_VER         SQX archiver version number required to extract this file
+1 byte
+
+ARC_METHOD      compression/archiving method
+1 byte
+
+FILE_CRC32      standard 32bit file crc
+4 bytes
+
+FILE_ATTR       file attributes
+4 bytes
+
+FILE_TIME       MSDOS file time stamp
+4 bytes
+
+COMP_SIZE       compressed file size
+4 bytes
+
+ORIG_SIZE       uncompressed file size
+4 bytes
+
+[COMP_SIZE64]   high dword of the compressed file size. it is only present if bit 7 in BLOCK_FLAGS is set
+4 bytes
+
+[ORIG_SIZE64]   high dword of the uncompressed file size. it is only present if bit 7 in BLOCK_FLAGS is set
+4 bytes
+
+NAME_LEN        length of file name
+2 bytes
+
+FILE_NAME       file name - array of NAME_SIZE bytes 
+(variable)
+
+[related blocks]    it is only present if bit 15 in BLOCK_FLAGS is set 
+(variable)
+
+[archive comment block]    it is only present if bit 5 in BLOCK_FLAGS is set 
+(variable)
+
+[EXTRA_COMPRESSOR]  it is only present if bit 0 in COMP_FLAGS is set. As this field belongs to the archive data it
+(2 bytes)           is encrypted if the corresponding bit in BLOCK_FLAGS is set
+                    bit -- 	meaning
+                    1       if set, the Relative Call Instruction Transform were applied to the data (pre lz77)
+                    2       if set, a delta transform were applied to the data (pre lz77)
+
+[DATA_SUB_HEADER]
+(variable)
+
+[compressed data]			
+(variable)
+
+
+7.3 The Archive Directory Header
+---------------------------------
+
+BLOCK_CRC       crc over block (BLOCK_TYPE to DIR_NAME)
+2 bytes         
+
+BLOCK_TYPE      0x56
+1 byte
+
+BLOCK_FLAGS		bit --  meaning
+2 bytes         0       always set to 0
+                5       if set, the archive directory has a comment						
+                6       if set, the file name was converted to the ASCII charset (Win32)
+                15      if set, another block or subblock follows (has no meaning for comments)
+				All other bits are reserved												
+
+BLOCK_SIZE      size of block including directory name
+2 bytes
+
+DIR_ATTR        directory attributes
+4 bytes
+
+DIR_LEN         length of directory name
+2 bytes
+
+DIR_NAME        directory name - array of DIR_LEN bytes 
+(variable)
+
+[archive comment block]     it is only present if bit 5 in BLOCK_FLAGS is set 
+(variable)
+
+
+7.4 The End of Archive Header
+------------------------------
+
+This block/header is not really required, but it might be useful if the
+archive is embedded in other data.
+
+BLOCK_CRC       crc over block (BLOCK_TYPE to BLOCK_SIZE)
+2 bytes         
+
+BLOCK_TYPE      0x53
+1 byte
+
+BLOCK_FLAGS     always set to 0
+2 bytes			
+
+BLOCK_SIZE      always 7
+2 bytes
+
+
+7.5 The Archive Comment Header
+-------------------------------
+
+BLOCK_CRC       crc over block (BLOCK_TYPE to comment data)
+2 bytes         
+
+BLOCK_TYPE      0x43
+1 byte
+
+BLOCK_FLAGS     always set to 0
+2 bytes         
+
+BLOCK_SIZE      block size from BLOCK_CRC to comment data
+2 bytes
+
+ARC_VER         SQX archiver version number required to process this comment
+1 byte
+
+ARC_METHOD      compression/archiving method
+1 byte
+
+COMP_SIZE       compressed comment size
+2 bytes
+
+ORIG_SIZE       uncompressed comment size
+2 bytes
+
+[comment data]
+
+
+7.6 Data Recovery Records
+--------------------------
+
+BLOCK_CRC       crc over block (BLOCK_TYPE to RD_CRC) 
+2 bytes												
+
+BLOCK_TYPE      0x58
+1 byte
+
+BLOCK_FLAGS     always set to 0
+2 bytes
+
+BLOCK_SIZE      block size from BLOCK_CRC to FD_CRC
+2 bytes
+
+BLOCK_ID        "SQ4RD"
+5 bytes
+
+R_LEVEL         percent of recovery data added
+4 bytes
+
+FILE_BLOCKS     # of file blocks the data was devided into
+8 bytes
+
+RD_BLOCKS       # of recovery blocks created from the data
+8 bytes
+
+ARC_VER         SQX archiver version required to process block
+1 byte
+
+DATA_SIZE       total size of original data
+8 bytes
+
+RD_CRC          crc over the recovery data
+4 bytes
+
+FD_CRC          crc over the file data (only used with external recovery records)
+4 bytes
+
+[recovery data]
+
+F_BLOCK_CRC_1   crc over first file block
+2 bytes
+
+F_BLOCK_CRC_N   crc over last file block (N = FILE_BLOCKS)
+2 bytes
+
+RD_BLOCK_1      first block with raw recovery data
+
+RD_BLOCK_N      last block with raw recovery data (N = RD_BLOCKS)
+
+
+7.7 Archive Subheaders
+-----------------------
+
+The SQX archive format defines two different kinds of subheaders: Subheaders related
+to archive headers (these subheaders describe certain properities of a certain file) and
+subheaders related to the archive data or a block of the archive data. These subheaders 
+describe certain properities of the stored or compressed data.
+
+
+7.7.1 The Archive Internal Header
+---------------------------------
+	
+This header is meant to be used to store data describing certain file properties which 
+have no correspronding entries in the other headers (file header, directory header,...).
+The field BLOCK_TYPE describes the header itself. The fields SUB_ID and VENDOR_ID describe
+the data of the block.
+
+BLOCK_CRC       crc over block 
+2 bytes												
+
+BLOCK_TYPE      0x49
+1 byte
+
+BLOCK_FLAGS     always set to 0
+2 bytes
+
+BLOCK_SIZE      block size including data
+2 bytes
+
+SUB_ID          unique sub ID for this block
+2 bytes
+
+VENDOR_ID       unique vendor ID for this block. Note: The ID 0x5153 is reserved for SQX
+2 bytes
+
+
+7.7.2 The Audio Header
+----------------------
+
+This header is only present if the compression method in the file header is set to
+SQX_C1_AUDIO. This header follows immediatly after the last header related to the file 
+header. As this header belongs to the archive data it is encrypted if the corresponding
+bit in BLOCK_FLAGS is set.
+
+SKIP_SIZE       size of chunk with uncompressed data (might be 0). if != 0, the uncompressed
+4 bytes         data follows immediatly after the audio header.
+	
+TAIL_SIZE       size of chunk with uncompressed data (might be 0). if != 0, the uncompressed
+4 bytes         data follows immediatly after the compressed data.
+	
+DATA_SIZE       size of the data compressed by the audio compressor
+4 bytes
+
+CHANNEL_NUM     # of channels the data were devided into (by the compressor).
+1 byte
+
+CHANNEL_BITS    # number of bits per channel
+1 byte
+	
+EXTRA_DATA      reserved, must be set to 0.
+4 bytes
+
+
+7.7.3 The Delta Header
+----------------------
+
+This header is present only if the EXTRA_COMPRESSOR field is present in the file
+header and if the bit 2 of it is set. The delta header describes the delta transform
+that were applied to the data (pre lz77). As this header belongs to the archive data 
+it is encrypted if the corresponding bit in BLOCK_FLAGS is set.
+
+CODER_TYPE      0 if 8 bit coders were used, 1 if a 16 bit coder were used
+1 byte
+
+CODER_NUM       # of delta coders used (1 - 4 for 8 bit coders, 1 for a 16 bit coder)
+byte
+
+DELTA_START     offset where the transform starts. note: this is a *signed* value.
+4 bytes
+
+
+
+
+8 References
+=============
+
+[1]  K. Sadakane and H. Imai, Improving the Speed of LZ77 by Hashing and Suffix Sorting, IEICE Trans. Fundamentals
+[2]  R. Nigel Horspool, The Effect of Non-Greedy Parsing in Ziv-Lempel Compression Methods
+[3]  Mark Nelson, Datenkomprimierung, Effiziente Algorithmen in C, Verlag Heinz Heise 1993
+[4]  Mark Nelson and Jean-Loup Gailly, The Data Compression Book, M&T Books 1996
+[5]  Karl Skretting, John Hakon Husøy and Sven Ole Aase, Improved Huffman Coding using Recursive Splitting
+[6]  Mikael Lundqvist, A fast Rangecoder, Implementation by Mikael Lundqvist
+[7]  Haruhiko Okumura, Data Compression Algorithms of LARC and LHarc
+[8]  H.Yoshizaki, The LHA Archiver, The LHA Archiver by H.Yoshizaki
+[9]  Damien Debin, The ZZIP Archiver, The ZZIP Archiver by Damien Debin
+[10] Mathieu Claude Hans, Optimization of Digital Audio for Internet Transmission, Thesis by Mathieu Claude Hans
+[11] Bruce Schneier, Angewandte Kryptographie, Addison-Wesley 1996
+[12] Brian Gladman, Implementations of AES (Rijndael), Implementations by Brian Gladman
+[13] Joan Daemen and Vincent Rijmen, The Rijndael Block Cypher
+[14] RSA Data Security, Inc., MD5 Message-Digest Algorithm, Implementation by RSA Data Security, Inc.
+
+
+
+
+9 Credits
+=========
+
+I would like to thank all people who helped to develope or to improve SQX. There were so many 
+people who helped either by testing the first (buggy) versions or by givíng useful hints etc that 
+I cannot name all, but without the help of these people SQX could not have been finished.
+
+Especially I would like to thank Dr. Brian Gladman for his kind permission to include his aes
+implementation into the SQX sample code.
+
+Also, I would like to thank Mr. Mikael Lundqvist for making his fast range coder available to
+the compression community.
+
+Not to forget Matt Ashland (MAC) and Florin Ghido (FROG) for their useful hints on audio compression, 
+and many thanks to Andreas Koltes who spent countless hours, days!? to discuss several topics with me.
+
+And last but not least many thanks to the support/beta staff at SpeedProject.
+
+
+
+
+10 Appendix A
+=============
+
+Relatetd sample code.
+
+
+
+
+
+R. Nausedat, September 2002

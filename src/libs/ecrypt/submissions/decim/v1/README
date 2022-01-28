@@ -1,0 +1,38 @@
+DECIM stream cipher reference implementation.
+
+The DECIM stream cipher has been invented by Come Berbain,
+Olivier Billet, Nicolas Courtois, Blandine Debraize, Henri Gilbert,
+Louis Goubin, Aline Gouget, Louis Granboulan, Cedric Lauradoux, 
+Marine Minier, Thomas Pornin and Herve Sibert.
+
+The reference implementation is free software; its license is as close
+to Public Domain as any software license can be under French law.
+
+The implementation consists of the following files:
+
+ecrypt-sync.h
+ecrypt-config.h  
+ecrypt-machine.h  
+ecrypt-portable.h  
+decim.h
+decim.c 
+
+The two first files come from the API published by the ECRYPT NoE for 
+their call for stream cipher candidates.
+The third and fourth files decim.c and decim.h contain everything
+required to run DECIM.
+
+The file decim.c contains a mechanism to select between
+
+-> no main function:
+   for this, undefine DECIM_VECTORS, and undefine DECIM_KEYSTREAM
+
+-> a main function to generate keystream:
+   for this, undefine DECIM_VECTORS, define DECIM_KEYSTREAM
+
+-> a main function to produce 32 test vectors:
+   for this, define DECIM_VECTORS
+
+The programs have been written for the GNU gcc environment but should
+compile and run on standard systems. Tested on Debian GNU/Linux on
+Intel P4 and AMD Athlon.

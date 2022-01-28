@@ -1,0 +1,64 @@
+NLS/SSS Version 1.0
+
+NLS is a synchronous stream cipher, and SSS is a self synchronous
+stream cipher. Both support MAC calculation across an arbitrary mix of
+encrypted and clear text.
+
+
+There are four distribution tarballs:
+
+   1. nls-1.0.tgz: the NLS cipher and test suite (including
+      reference and fast versions).
+
+   2. sss-1.0.tgz: the SSS cipher and test suite (including
+      reference and fast versions).
+
+   3. ecrypt-nls-1.0.tgz: the NLS cipher plus a wrapper which
+      implements the Ecrypt synchronous stream cipher API.
+
+   4. ecrypt-sss-1.0.tgz: the SSS cipher plus a wrapper which
+      implements the Ecrypt self-synchronous stream cipher API.
+
+See http://www.ecrypt.eu.org/stream/api.html for documentation on
+the ECRYPT API.
+
+
+Unpacking the source:
+
+Unpack one or more of the above tarballs. If you want
+everything, you only need to get the ecrypt-*.tgz files since they
+already contain the underlying cipher code.
+
+
+Compilation instructions:
+
+   1. Edit "Makefile.config" to define the compilation environment.
+      (if you are using a recent gcc on a little-endian machine,
+      you can skip this step).
+
+   2. Run "make all".
+
+
+The results of compilation depend on which tarballs you unpacked:
+
+   1. nls-*.tgz: When built, this produces nlsref.o and nlsfast.o,
+      a reference implementation and fast implementation respectively.
+      See nls.h for documentation on the low level API.
+
+   2. sss-*.tgz: When built, this produces sssref.o and sssfast.o, a
+      reference implementation and fast implementation respectively.
+      See sss.h for documentation on the low level API.
+
+   3. ecrypt-nls-*.tgz: When built, this produces ecrypt-nls.o,
+      an implementation of the Ecrypt synchronous stream cipher API,
+      plus the objects normally built by nls-*.tgz.
+
+   4. ecrypt-sss-*.tgz: When built, this produces ecrypt-sss.o,
+      an implementation of the Ecrypt synchronous stream cipher API,
+      plus the objects normally built by sss-*.tgz.
+
+
+Other make targets:
+
+Other useful make targets include "test", "time", "clean", and "dist".
+Sophisticated users are referred to the makefiles for more information.

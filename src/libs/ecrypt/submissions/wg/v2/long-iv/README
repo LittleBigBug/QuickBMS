@@ -1,0 +1,24 @@
+This directory contains following files:
+
+1.ecrypt-config.h
+2.ecrypt-machine.h
+3.ecrypt-portable.h
+4.ecrypt-sync.h
+5.ecrypt-sync.c
+6.wg_cipher_longIVs.c
+
+The first 5 files have been taken from the Ecrypt website
+
+https://www.cosic.esat.kuleuven.ac.be/ecrypt/stream/api.html
+
+Files 1,2,3, and 5 have not been modified in any way.
+File 5 (ecrypt-sync.h) has been edited as suggested in the file.
+
+File 6 (wg_cipher_longIVs.c) contains the portable C implementation
+of the functions defined in ecrypt-sync.h
+
+Note that this implementation only allows IVs that are of the same
+length as the secret key.
+
+
+

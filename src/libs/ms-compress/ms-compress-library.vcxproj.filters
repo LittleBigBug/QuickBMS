@@ -1,0 +1,93 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hpp;hxx;hm;inl;inc;xsd</Extensions>
+    </Filter>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Internal">
+      <UniqueIdentifier>{730047bc-3c28-440e-aec1-049936ee59fe}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include/mscomp/config.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include/mscomp/general.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include/mscomp.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include/lznt1.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include/xpress.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include/xpress_huff.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include/mscomp/XpressDictionary.h">
+      <Filter>Internal</Filter>
+    </ClInclude>
+    <ClInclude Include="include/mscomp/LZNT1Dictionary.h">
+      <Filter>Internal</Filter>
+    </ClInclude>
+    <ClInclude Include="include/mscomp/LCG.h">
+      <Filter>Internal</Filter>
+    </ClInclude>
+    <ClInclude Include="include/mscomp/internal.h">
+      <Filter>Internal</Filter>
+    </ClInclude>
+    <ClInclude Include="include/mscomp/HuffmanEncoder.h">
+      <Filter>Internal</Filter>
+    </ClInclude>
+    <ClInclude Include="include/mscomp/HuffmanDecoder.h">
+      <Filter>Internal</Filter>
+    </ClInclude>
+    <ClInclude Include="include/mscomp/CircularBuffer.h">
+      <Filter>Internal</Filter>
+    </ClInclude>
+    <ClInclude Include="include/mscomp/Bitstream.h">
+      <Filter>Internal</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mscomp\LZNT1Dictionary_SA.h">
+      <Filter>Internal</Filter>
+    </ClInclude>
+    <ClInclude Include="include\mscomp\sorting.h">
+      <Filter>Internal</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src/mscomp.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src/lznt1_compress.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src/lznt1_decompress.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src/xpress_compress.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src/xpress_decompress.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src/xpress_huff_compress.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src/xpress_huff_decompress.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

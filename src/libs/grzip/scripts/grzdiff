@@ -1,0 +1,77 @@
+#!/bin/sh
+# sh is buggy on RS/6000 AIX 3.2. Replace above line with #!/bin/ksh
+
+# Grzcmp/diff wrapped for grzip, 
+# adapted from zdiff by Simon Matter <simon.matter@invoca.ch>
+# for Invoca Linux Server.
+
+# Grzcmp and grzdiff are used to invoke the cmp or the  diff  pro-
+# gram  on compressed files.  All options specified are passed
+# directly to cmp or diff.  If only 1 file is specified,  then
+# the  files  compared  are file1 and an uncompressed file1.gz.
+# If two files are specified, then they are  uncompressed  (if
+# necessary) and fed to cmp or diff.  The exit status from cmp
+# or diff is preserved.
+
+PATH="/usr/bin:$PATH"; export PATH
+prog=`echo $0 | sed 's|.*/||'`
+case "$prog" in
+  *cmp) comp=${CMP-cmp}   ;;
+  *)    comp=${DIFF-diff} ;;
+esac
+
+OPTIONS=
+FILES=
+for ARG
+do
+    case "$ARG" in
+    -*)	OPTIONS="$OPTIONS $ARG";;
+     *)	if test -f "$ARG"; then
+            FILES="$FILES $ARG"
+        else
+            echo "${prog}: $ARG not found or not a regular file"
+	    exit 1
+        fi ;;
+    esac
+done
+if test -z "$FILES"; then
+	echo "Usage: $prog [${comp}_options] file [file]"
+	exit 1
+fi
+tmp=`/bin/mktemp ${TMPDIR:-/tmp}/grzdiff.XXXXXXXXXX` || {
+      echo 'cannot create a temporary file' >&2
+      exit 1
+}
+set $FILES
+if test $# -eq 1; then
+	FILE=`echo "$1" | sed 's/.grz$//'`
+	grzip -c -d "$FILE.grz" | $comp $OPTIONS - "$FILE"
+	STAT="$?"
+
+elif test $# -eq 2; then
+	case "$1" in
+        *.grz)
+                case "$2" in
+	        *.grz)
+			F=`echo "$2" | sed 's|.*/||;s|.grz$||'`
+                        grzip -c -d -f -q "$2" > $tmp
+                        grzip -c -d -f -q "$1" | $comp $OPTIONS - $tmp
+                        STAT="$?"
+			/bin/rm -f $tmp;;
+
+                *)      grzip -c -d -f -q "$1" | $comp $OPTIONS - "$2"
+                        STAT="$?";;
+                esac;;
+        *)      case "$2" in
+	        *.grz)
+                        grzip -c -d -f -q "$2" | $comp $OPTIONS "$1" -
+                        STAT="$?";;
+                *)      $comp $OPTIONS "$1" "$2"
+                        STAT="$?";;
+                esac;;
+	esac
+        exit "$STAT"
+else
+	echo "Usage: $prog [${comp}_options] file [file]"
+	exit 1
+fi

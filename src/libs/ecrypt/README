@@ -1,0 +1,902 @@
+                          eSTREAM Optimized Code HOWTO
+
+   ECRYPT NoE
+
+   <estreamtesting@ecrypt.eu.org>
+
+   2005-11-01
+
+   +------------------------------------------------------------------------+
+   | Revision History                                                       |
+   |------------------------------------------------------------------------|
+   | Revision 1.0             | 2005-11-01            | cdecanni            |
+   |------------------------------------------------------------------------|
+   | first public version                                                   |
+   |------------------------------------------------------------------------|
+   | Revision 0.9             | 2005-09-26            | cdecanni            |
+   |------------------------------------------------------------------------|
+   | first draft                                                            |
+   +------------------------------------------------------------------------+
+
+   Abstract
+
+   This document describes the eSTREAM testing framework and provides
+   guidelines on how to write and submit optimized code.
+
+   --------------------------------------------------------------------------
+
+   Table of Contents
+
+   1. Introduction
+
+                1.1. Disclaimer
+
+                1.2. Feedback
+
+   2. The Testing Framework: An Overview
+
+                2.1. API Compliance
+
+                2.2. Correctness
+
+                2.3. Performance
+
+   3. Installing the Testing Framework
+
+                3.1. x86 Live CD
+
+                3.2. GNU/Linux
+
+                3.3. Microsoft Windows
+
+                3.4. UNIX Platforms
+
+                3.5. Other Systems
+
+   4. Running Tests
+
+                4.1. Configuring
+
+                4.2. Launching Tests
+
+                4.3. Collecting the Results
+
+   5. Submitting Optimized Code
+
+                5.1. Step 1: Install the Testing Framework
+
+                5.2. Step 2: Edit Source Files
+
+                5.3. Step 3: Run Tests
+
+                5.4. Step 4: Submit Code
+
+   6. Latest Performance Figures
+
+   7. Frequently Asked Questions
+
+   8. Further Information
+
+   References
+
+1. Introduction
+
+   One of the requirements imposed on all eSTREAM stream cipher submissions
+   was that they should demonstrate the potential to be superior to the AES
+   in at least one significant aspect. An aspect which is particularly
+   significant for Profile I candidates is software performance.
+
+   Software performance can be measured in many different ways, and in order
+   to make comparisons as fair as possible, eSTREAM has decided to develop a
+   testing framework. The framework has two objectives:
+
+    1. assuring that all stream cipher proposals are submitted to the same
+       tests under the same circumstances
+
+    2. automating the test procedure as much as possible such that new
+       optimized implementations can be included and tested with as little
+       effort as possible.
+
+   This second goal requires some cooperation from the submitters of
+   optimized code, and the purpose of this document is to provide guidelines
+   on how to write code that can easily be integrated in the testing
+   framework.
+
+  1.1. Disclaimer
+
+   ECRYPT is a Network of Excellence within the Information Societies
+   Technology (IST) Programme of the European Commission. The information in
+   this note is provided as is, and no guarantee or warranty is given or
+   implied that the information is fit for any particular purpose. The user
+   thereof uses the information at his or her sole risk and liability.
+
+  1.2. Feedback
+
+   Feedback is most certainly welcome for this document. Send your additions,
+   comments and criticisms to the following email address :
+   <estreamtesting@ecrypt.eu.org>.
+
+2. The Testing Framework: An Overview
+
+   The testing framework consists of a collection of scripts and C-code which
+   test three aspects of the submitted code: API compliance, correctness, and
+   performance. Many of these tests have been borrowed from the NESSIE Test
+   Suite.
+
+  2.1. API Compliance
+
+   The eSTREAM API is specified in the files ecrypt-sync.h and
+   ecrypt-sync-ae.h. The framework verifies whether the code complies to this
+   API by performing the following tests:
+
+    1. It checks that the code provides the necessary interfaces, i.e., that
+       it compiles and links correctly with the test code (ecrypt-test.c).
+
+    2. It checks that the ECRYPT_KEYSIZE(i) and ECRYPT_MAXKEYSIZE macros
+       allow key sizes to be enumerated as specified by the API. Idem for IV
+       and MAC sizes.
+
+    3. It checks that calls to the same functions with the same parameters
+       produce the same results, no matter how they are interleaved. When
+       this test fails, this is often an indication that the code stores data
+       in static variables, or that it uses uninitialized variables.
+
+    4. It checks that the incremental encryption functions
+       ECRYPT_encrypt_blocks and ECRYPT_encrypt_bytes produce the same
+       ciphertext as ECRYPT_encrypt_packet when fed with the same plaintext.
+       It also verifies that this ciphertext decrypts to the original
+       plaintext.
+
+  2.2. Correctness
+
+   The correctness of the code on different platforms is verified by
+   generating and comparing test vectors. For convenience, eSTREAM has chosen
+   to use the same format as the NESSIE test vectors.
+
+  Caution
+
+   The test vectors currently included in the testing framework were
+   generated by eSTREAM and still need to be verified by the designers.
+
+  2.3. Performance
+
+   Stream ciphers can be deployed in various situations, each imposing
+   specific requirements on the efficiency of the primitive. Hence, defining
+   a small set of performance criteria which reflects all relevant
+   implementation properties of a stream cipher is not an easy task. In the
+   current version of the framework, eSTREAM has limited itself to four
+   performance measures. More detailed tests might be added in the future,
+   though.
+
+    1. Encryption rate for long streams. This is where stream ciphers have
+       the biggest potential advantage over block ciphers, and hence this
+       figure is likely to be the most important criterion in many
+       applications. The testing framework measures the encryption rate by
+       encrypting a long stream in chunks of about 4KB using the
+       ECRYPT_encrypt_blocks function. The encryption speed, in cycles/byte,
+       is calculated by measuring the number of bytes encrypted in 250 µsec.
+       Note that the time to setup the key or the IV is not considered in
+       this test.
+
+    2. Packet encryption rate. While a block cipher is likely to be a better
+       choice when encrypting very short packets, it is still interesting to
+       determine at which length a stream cipher starts to take the lead.
+       Moreover, stream ciphers whose encryption speeds do not deteriorate
+       too much for small packets could have a distinct advantage in
+       applications which use a wide range of packet sizes. The packet
+       encryption rate is measured by applying the ECRYPT_encrypt_packet
+       function to packets of different lengths. Each call to
+       ECRYPT_encrypt_packet includes a separate IV setup and, if
+       authenticated encryption is supported, a MAC finalization step. The
+       packet lengths (40, 576, and 1500 bytes) were chosen to be
+       representative for the traffic seen on the Internet [JTC-003].
+
+    3. Agility. When an application needs to encrypt many streams in parallel
+       on a single processor, its performance will not only depend on the
+       encryption speed of the cipher, but also on the time spent switching
+       from one session to another. This overhead is typically determined by
+       the number of bytes of ECRYPT_ctx that need to be stored or restored
+       during each context switch. In order to build a picture of the agility
+       of the different submissions, the testing framework performs the
+       following test: it first initiates a large number of sessions (filling
+       16MB of RAM with ECRYPT_ctx structures), and then encrypts streams of
+       plaintext in short blocks of around 256 bytes using
+       ECRYPT_encrypt_blocks, each time jumping from one session to another.
+
+    4. Key and IV setup (+ MAC generation). The last test in the testing
+       framework separately measures the efficiency of the key setup
+       (ECRYPT_keysetup) and the IV setup (ECRYPT_ivsetup). Given that each
+       call to ECRYPT_AE_ivsetup comes together with a call to
+       ECRYPT_AE_finalize, both functions are benchmarked together in case of
+       authenticated stream ciphers. This is probably the least critical of
+       the four tests, considering that the efficiency of the IV setup is
+       already reflected in the packet encryption rate, and that the time for
+       the key setup will typically be negligible compared to the work needed
+       to generate and exchange the key.
+
+   The different tests are illustrated below with an example for SNOW 2.0.
+   The latest results for all submissions, measured by eSTREAM on various
+   platforms, can be found in Section 6, "Latest Performance Figures".
+
+   Example 1. Output of performance tests
+
+ Primitive Name: SNOW-2.0
+ ========================
+ Profile: SW
+ Key size: 128 bits
+ IV size: 128 bits
+
+ CPU speed: 1694.8 MHz
+ Cycles are measured using RDTSC instruction
+
+ Testing memory requirements:
+
+ Size of ECRYPT_ctx: 108 bytes
+
+ Testing stream encryption speed:
+
+ Encrypted 22 blocks of 4096 bytes (under 1 keys, 22 blocks/key)
+ Total time: 415015 clock ticks (244.87 usec)
+ Encryption speed (cycles/byte): 4.61
+ Encryption speed (Mbps): 2943.95
+
+ Testing packet encryption speed:
+
+ Encrypted 350 packets of 40 bytes (under 10 keys, 35 packets/key)
+ Total time: 411499 clock ticks (242.80 usec)
+ Encryption speed (cycles/packet): 1175.71
+ Encryption speed (cycles/byte): 29.39
+ Encryption speed (Mbps): 461.29
+ Overhead: 538.2%
+
+ Encrypted 120 packets of 576 bytes (under 10 keys, 12 packets/key)
+ Total time: 416341 clock ticks (245.66 usec)
+ Encryption speed (cycles/packet): 3469.51
+ Encryption speed (cycles/byte): 6.02
+ Encryption speed (Mbps): 2250.95
+ Overhead: 30.8%
+
+ Encrypted 50 packets of 1500 bytes (under 1 keys, 50 packets/key)
+ Total time: 395528 clock ticks (233.38 usec)
+ Encryption speed (cycles/packet): 7910.56
+ Encryption speed (cycles/byte): 5.27
+ Encryption speed (Mbps): 2570.96
+ Overhead: 14.5%
+
+ Weighted average (Simple Imix):
+ Encryption speed (cycles/byte): 7.35
+ Encryption speed (Mbps): 1844.62
+ Overhead: 59.6%
+
+ Testing key setup speed:
+
+ Did 7000 key setups (under 10 keys, 700 setups/key)
+ Total time: 446655 clock ticks (263.54 usec)
+ Key setup speed (cycles/setup): 63.81
+ Key setup speed (setups/second): 26561211.67
+
+ Testing IV setup speed:
+
+ Did 500 IV setups (under 10 keys, 50 setups/key)
+ Total time: 397912 clock ticks (234.78 usec)
+ IV setup speed (cycles/setup): 795.82
+ IV setup speed (setups/second): 2129634.19
+
+ Testing key agility:
+
+ Encrypted 270 blocks of 256 bytes (each time switching contexts)
+ Total time: 412653 clock ticks (243.48 usec)
+ Encryption speed (cycles/byte): 5.97
+ Encryption speed (Mbps): 2271.07
+ Overhead: 29.6%
+
+
+ End of performance measurements
+
+3. Installing the Testing Framework
+
+   A tarball of the latest version of the testing framework can always be
+   downloaded from ECRYPT's SVN repository. This repository contains the most
+   recent implementations of all stream cipher candidates, together with test
+   vectors, test scripts, and a few benchmark ciphers (AES in CTR mode, RC4,
+   SNOW 2.0).
+
+   The scripts expect a shell compatible with GNU Bash, system utilities
+   compatible with GNU Coreutils, and one (or more) ANSI C compiler(s). The
+   following sections discuss how these requirements can be fulfilled on
+   various platforms.
+
+  3.1. x86 Live CD
+
+   The easiest way to run the testing framework on a x86 platform is to
+   download eSTREAM's bootable Live CD. The CD allows the framework to run
+   without any installation and without affecting the existing configuration
+   on the host machine in any way. The Live CD is based on Ubuntu and
+   includes:
+
+     o a stripped-down version of Ubuntu 5.04.
+
+     o a working copy of the testing framework.
+
+     o different versions of GCC (2.95, 3.3, 3.4, and 4.0).
+
+     o Intel C++ Compiler 8.1 for Linux.
+
+     o Microsoft Visual C++ Toolkit 2003.
+
+   To run the Live CD, complete the following steps:
+
+    1. Download the ISO-file (about 400MB) and burn it on a CD.
+
+    2. If you want to use the Intel C Compiler, you will need a license file.
+       You can obtain a free non-commercial license by subscribing here. If
+       you store the license file on a memory stick, the Live CD will
+       recognize it automatically.
+
+    3. Boot the CD and choose your language, keyboard layout, etc.
+
+    4. When the screen shown in Figure 1, "Screenshot of Live CD" comes up,
+       double-click on the "ECRYPT test suite" icon. This will install the
+       testing framework in ~/ecrypt-test-suite, fetch updates from the
+       eSTREAM server if requested, and immediately launch the testing
+       process (see Section 4, "Running Tests"). The tests can be aborted at
+       any time by pressing Ctrl-C.
+
+  Caution
+
+       The Live CD does not store anything on the hard disk. Any changes you
+       make will be lost after reboot, unless you copy them manually (e.g.,
+       on a memory stick).
+
+   Figure 1. Screenshot of Live CD
+
+   Screenshot of Live CD
+
+  3.2. GNU/Linux
+
+   The testing framework should install and run without problems on any
+   recent Linux distribution. Here are the Installation instructions:
+
+    1. Download and untar the tarball of the testing framework:
+
+ $ wget http://www.ecrypt.eu.org/stream/svn/viewcvs.cgi/ecrypt/trunk.tar.gz
+ $ tar -xzf trunk.tar.gz
+
+    2. Correct the permissions of the scripts (this fix is necessary because
+       the current version of ViewCVS does not understand the svn:executable
+       property).
+
+ $ cd trunk/
+ $ chmod +x start scripts/{cleanup,collect,configure,run,tabulate}
+
+    3. Make sure you have a compiler (GCC) installed and configure the
+       framework as explained in Section 4.1, "Configuring".
+
+  3.3. Microsoft Windows
+
+   The shell and system utilities required by the testing framework are not
+   present on a standard Windows platform. Fortunately, there exist several
+   freely available software packages which provide this functionality. The
+   instructions below explain how to install the framework using the
+   MinGW/MSYS packages.
+
+    1. First install an ANSI C compiler. The testing framework currently
+       detects two compilers under Windows:
+
+          o Microsoft C/C++ Optimizing Compiler, which is included in
+            Microsoft Visual Studio and can be downloaded separately from
+            MSDN.
+
+          o GCC, which has been ported to Windows by the MinGW project
+            (amongst others). The installation program is available here.
+
+    2. Install the MSYS shell. The current version can be downloaded here.
+
+  Caution
+
+       If you plan to use the MinGW compiler, make sure to install it before
+       installing MSYS.
+
+    3. Download the tarball of the testing framework and store it in your
+       MSYS home directory. In a default installation, this directory is
+       located in C:\msys\1.0\home\%USERNAME%. Open an MSYS terminal and
+       extract the tarball:
+
+ $ tar -xzf trunk.tar.gz
+ $ cd trunk/
+
+    4. Configure the framework as explained in Section 4.1, "Configuring".
+
+  Tip
+
+       If the configuration script does not detect the Microsoft Compiler,
+       this probably indicates that the environment variables PATH, INCLUDE,
+       and LIB are not set correctly. The correct values can be found in a
+       file named vcvars32.bat. You can either add these variables to your
+       system in Control Panel->System->Advanced->Environment Variables, or
+       (for a default installation) add the following line in
+       C:\msys\1.0\msys.bat:
+
+ C:\Program Files\Microsoft Visual C++ Toolkit 2003\vcvars32.bat
+
+  3.4. UNIX Platforms
+
+   The installation instructions for UNIX platforms are the same as the ones
+   given in Section 3.2, "GNU/Linux". However, depending on your operating
+   system, some of the scripts might fail to run correctly because of small
+   compatibility problems. The easiest way to avoid this is to replace some
+   of the UNIX utilities by their GNU equivalents:
+
+     o GNU Bash
+
+     o GNU Make
+
+     o GNU Coreutils
+
+   With these tools installed, the framework is known to run correctly on the
+   following platforms:
+
+     o HP-UX 11.00 (PA-RISC version) with HP C/HP-UX Version B.11.11.02
+       and/or GCC.
+
+     o Solaris 8 (SPARC edition) with SUN Forte Developer 7 C 5.4 and/or GCC.
+
+     o Tru64 UNIX V5.1B (Alpha) with Compaq C V6.5-011 and/or GCC.
+
+  3.5. Other Systems
+
+   It is probably not too hard to make the framework run on other systems
+   (e.g., Mac OS X on PowerPC). As soon as we have a chance to test it, we
+   will update this document.
+
+4. Running Tests
+
+   This section explains how to use the scripts inluded in the testing
+   framework. The three most important scripts are called configure, run, and
+   collect and are located in the directory ./scripts. A fourth script,
+   called start, runs the three previous commands one after another.
+
+  Tip
+
+   In order to avoid having to prefix all commands with ./scripts/, add the
+   scripts directory to the PATH variable:
+
+ $ export PATH=$PWD/scripts:$PATH
+
+  4.1. Configuring
+
+   The configure script searches the path for compilers, tests which compiler
+   options are supported, and collects information about the CPU. All
+   information is stored in the directory ./reports-$HOSTNAME. The first part
+   of the script's output is reproduced below:
+
+ $ ./scripts/configure
+
+  * searching for compilers ... done
+
+ The following executables look like compilers:
+   - gcc
+   - gcc-3.3
+   - i386-linux-gcc
+   - i386-linux-gcc-3.3
+   - i486-linux-gcc-3.3
+   - icc
+   - cl
+
+ I will now execute them for further testing.
+ Is this safe? [Y/n] y
+
+  * checking compilers and discarding duplicates ... done
+  * checking compiler options ... done
+
+   If the list of executables above contains programs which you definitely do
+   not want the script to run and test, simply press n, edit the file
+   ./reports-$HOSTNAME/candidates, and start the script again.
+
+   The final list of supported compilers and options is stored in
+   ./reports-$HOSTNAME/compilers. Note that this first stage is normally only
+   executed when the script is launched for the very first time. The script
+   will only perform a new search, if the file ./reports-$HOSTNAME/compilers
+   has been deleted.
+
+   The second part of the script provides the possibility to enable or
+   disable any compiler previously detected. The set of active compilers can
+   be modified at any time by running configure again.
+
+ The following compilers are supported:
+   1. gcc
+   2. icc
+   3. cl
+
+ Enter a comma-separated list of numbers to select compilers
+ or press <return> to select everything: 1,2,3
+
+  * creating config files ... done
+
+   The result of the script is a list of configuration files in
+   ./reports-$HOSTNAME/configs, each of which defines a compiler and a
+   combination of flags. Which configurations will eventually be used during
+   the benchmarking, and in which order, is determined by the file
+   ./reports-$HOSTNAME/shortlist, constructed in the next step of the script:
+
+ The following shortlists contain compiler options which are
+ likely to produce fast code on particular platforms:
+   1. shortlist.alpha (11 options)
+   2. shortlist.amd64 (17 options)
+   3. shortlist.hppa (10 options)
+   4. shortlist.pentium-4 (32 options)
+   5. shortlist.pentium-m (29 options)
+   6. shortlist.sparc (19 options)
+
+ Enter a number to select a list: 5
+
+  * copying shortlist.pentium-m ... done
+
+ After having tested the options in the shortlist, should
+ the script start testing other options? [Y/n] y
+
+   If you want the script to finish immediately after all configurations in
+   the shortlist have been tested, answer n. The framework's default behavior
+   is to start testing compiler options which are not on the list, until the
+   script is either interrupted by the user (pressing Ctrl-C), or all
+   configuration files in ./reports-$HOSTNAME/configs have been tested.
+
+   The last task of the configuration script is to determine the CPU's clock
+   frequency. The correct frequency should automatically be detected on most
+   platforms:
+
+  * collecting CPU information ... done
+
+ The processor seems to run at 1694.829 MHZ.
+ Press <return> if this is correct, or enter the clock speed:
+
+
+  4.2. Launching Tests
+
+   The actual tests are launched with the command run. When invoked without
+   arguments, the script will run through all implementations in the test
+   suite, compile each of them using the current compiler settings, and
+   perform the tests described in Section 2, "The Testing Framework: An
+   Overview". This is repeated for all compiler configurations in
+   ./reports-$HOSTNAME/configs (or at least those in the shortlist), and the
+   results are stored in the current working directory. The following example
+   shows how run is invoked in the start script (all test reports are stored
+   in ./reports-$HOSTNAME in this case):
+
+ $ cd reports-$HOSTNAME/
+ $ ../scripts/run
+
+   An optional argument can be used to specify the directory which contains
+   the implementations to be tested. If the specified path does not point to
+   an existing directory, the script will check whether it matches a
+   directory in submissions or benchmarks. The command below, for example,
+   will only test the implementation of SNOW 2.0 (assuming that the scripts
+   directory is in the PATH):
+
+ $ mkdir snow-results
+ $ cd snow-results/
+ $ run snow-2.0
+
+  Note
+
+   On some platforms, the testing framework might use the standard clock()
+   function to measure timings. Unfortunately, this function has a rather low
+   resolution on most platforms. As a consequence, tests need to be run for
+   several seconds in order for the timing results to be accurate. Depending
+   on the number of primitives and compiler options, the benchmarking can
+   therefore take a very long time. The tests can be aborted at any time by
+   pressing Ctrl-C, though.
+
+  4.3. Collecting the Results
+
+   Once the tests are finished (or have been aborted by the user), the
+   results can be collected with the collect command. This script traverses
+   the current working directory tree and creates an HTML report (named
+   index.html) summarizing the benchmark results for each subdirectory it
+   encounters. For examples of the HTML output, see Section 6, "Latest
+   Performance Figures".
+
+5. Submitting Optimized Code
+
+   This section is a step-by-step guide to writing code which can easily be
+   integrated into the testing framework. Please make sure to follow the
+   steps described below before submitting optimized code to the eSTREAM
+   project.
+
+  5.1. Step 1: Install the Testing Framework
+
+   First, dowload, install, and configure the testing framework as explained
+   in detail in Section 3, "Installing the Testing Framework" and
+   Section 4.1, "Configuring".
+
+  5.2. Step 2: Edit Source Files
+
+   The easiest way to create a new API-compliant implementation of a stream
+   cipher is to copy and edit the reference implementation included in the
+   testing framework:
+
+ $ cd ./submissions/xyz/
+ $ mv `echo *; mkdir old` old/
+ $ cp -r old/ new
+
+   There are a number of issues that should be taken into account when
+   editing the source code:
+
+     o Portability. The optimized code should compile under any ANSI C
+       compiler and run on any platform. This does not mean that compiler or
+       platform specific extensions cannot be used. However, if non-standard
+       constructs are used, then the code should first check if the
+       extensions are supported by the compiler, and if not, provide
+       (possibly non-optimized) alternatives. Here is an example:
+
+ #if defined(_MSC_VER) && (_MSC_VER >= 1300)
+
+ /* optimized code using Microsoft Visual C++ .NET extensions */
+
+ #elif defined(__x86_64__)
+
+ /* code optimized for the AMD64 architecture */
+
+ #else
+
+ /* standard C code */
+
+ #endif
+
+       The code should also anticipate possible endianness and data alignment
+       problems when running on non-x86 platforms. This involves the
+       following measures:
+
+          o Use the UXTOY_LITTLE or UXTOY_BIG macros defined in
+            ecrypt-portable.h anywhere words are stored into bytes or the
+            other way around. These macros will change the order of the bytes
+            on all platforms where it is required.
+
+          o Align all memory accesses. Several UNIX machines will generate
+            bus errors when words loaded from or stored into the memory are
+            not aligned on multiples of the word size. Note that the code can
+            safely assume that all byte strings passed to the API are aligned
+            on multiples of the largest word size supported on the machine
+            (e.g., 128 bit on modern Pentium 4 processors).
+
+     o Readability. Avoid writing unnecessary complex code, i.e.:
+
+          o Only implement the functions strictly required by the API. Code
+            providing additional debugging functionality, interactive user
+            interfaces, etc. should be disabled (using #ifndef ECRYPT_API),
+            or better yet, completely removed.
+
+          o Remove unused variables and 'dead' code.
+
+          o Manually unroll loops only if this makes the code significantly
+            faster.
+
+     o Assembly. An efficient C implementation, compiled with a modern
+       compiler and with the proper optimization flags, is often pretty
+       difficult to beat using hand-coded assembly. However, if you feel that
+       your implementation could significantly benefit from assembly, then
+       here are some guidelines:
+
+          o Always analyze the machine code generated by your C compiler
+            before writing your own assembly.
+
+          o If the only purpose of the assembly is to take advantage of SIMD
+            instructions, consider to replace it by C intrinsics (the MMX
+            intrinsics defined in mmintrin.h, for example, are supported by
+            GNU, Intel, and Microsoft).
+
+          o Avoid the use of assembly in non-critical parts of your
+            implementation. The preferred approach is to use only a few short
+            blocks of inline assembly in the inner loops of your algorithm.
+            As before, make sure that the code checks whether the compiler
+            supports the assembly syntax, for example:
+
+ #if defined(__GNUC__) && defined(__i386__)
+   asm
+     ("\n        sall    $5, %[a]"
+      "\n        sarl    $27, %[b]"
+      "\n        orl     %[b], %[a]"
+      "\n        addl    %[c], %[a]"
+      : [a] "+r" (a)
+      : [b] "r" (b), [c] "g" (c));
+ #else
+   a = ((a << 5) | (b >> 27)) + c;
+ #endif
+
+          o While eSTREAM does not encourage this, plain assembly
+            implementations can also be submitted, provided that they can be
+            processed by GCC (i.e., .s or .S files). Here is an example of a
+            .S file:
+
+         .text
+
+         .globl  ECRYPT_init
+         .type   ECRYPT_init, @function
+ ECRYPT_init:
+         ret
+         .size   ECRYPT_init, .-ECRYPT_init
+
+         .globl  ECRYPT_keysetup
+         .type   ECRYPT_keysetup, @function
+ ECRYPT_keysetup:
+
+ #if defined(__pentium4__)
+
+         /* assembly optimized for Pentium 4 */
+
+ #elif defined(__x86_64__)
+
+         /* assembly optimized for AMD64 */
+
+ #else
+ #error architecture is not supported
+ #endif
+
+         ret
+         .size   ECRYPT_keysetup, .-ECRYPT_keysetup
+
+         ...
+
+  5.3. Step 3: Run Tests
+
+   Before submitting an optimized implementation, you should make sure that
+   (1) it interacts correctly with the testing framework, and (2) it is
+   indeed more efficient than the existing code. In order to verify these
+   conditions, create a test directory and run the tests as described in
+   Section 4.2, "Launching Tests":
+
+ $ mkdir test-results
+ $ cd test-results/
+ $ run xyz/new
+ $ collect
+
+   The scripts should not return any error. If they do, then the code is
+   probably not API compliant. The sections below describe a number of common
+   problems and explain how to resolve them.
+
+    5.3.1. The compilation fails
+
+   If the compilation fails, check the error messages in errors_*. Typical
+   compilation errors are:
+
+   "undefined reference to `ECRYPT_init'"
+
+           This message indicates that your code does not define the
+           ECRYPT_init function. This function should always be defined, even
+           if it is left empty.
+
+   "syntax error before '/' token"
+
+           Replace non-standard "//" comments by "/* ... */".
+
+   "syntax error before "u64""
+
+           On 32-bit platforms, u64 variables are defined as unsigned long
+           long. This type exists in the ISO C99 standard, but not in ISO
+           C89. Therefore, if your code uses u64 variables, replace the third
+           line of the Makefile by:
+
+ std = -std=c99
+
+    5.3.2. The execution fails when trying to generate test vectors
+
+   If the script refuses to generate test vectors, this typically indicates
+   that the code did not pass the API compliance tests described in
+   Section 2.1, "API Compliance". The file errors_* reports which tests
+   failed. In order to correct these problems, make sure that:
+
+     o all variables that need to be transferred from one function call to
+       another are stored in the ECRYPT_ctx structure, and not in static
+       variables or dynamically allocated memory;
+
+     o all variables are initialized;
+
+     o the function ECRYPT_ivsetup reinitializes all variables whose values
+       were changed during the encryption with previous IVs.
+
+   Another common problem which causes the execution to fail on 64-bit
+   machines are bus errors due to misaligned data. When loading or storing
+   words into the memory, always make sure that they are aligned on multiples
+   of the word size (see also Section 5.2, "Step 2: Edit Source Files").
+
+    5.3.3. The test vectors do not match
+
+   If the test vectors generated by the scripts differ from the ones included
+   in the testing framework, this might have two causes:
+
+     o There is a bug in the optimized implementation.
+
+       A common problem on UNIX platforms are endianness issues. As explained
+       in Section 5.2, "Step 2: Edit Source Files", always use the
+       UXTOY_LITTLE or UXTOY_BIG macros when translating bytes into words or
+       vice versa.
+
+     o There was a bug in the original reference code. In this case new test
+       vectors need to be generated. This can be done by issuing the
+       following command in the source directory:
+
+ $ make vectors
+
+       If you do not have GCC installed, you will also need to specify which
+       configuration file (see Section 4.1, "Configuring") to use, for
+       example: make vectors conf=cl_default_default.
+
+       The command above will generate a file called unverified.test-vectors,
+       which can be renamed to verified.test-vectors once the correctness of
+       the test vectors have been verified:
+
+ $ mv unverified.test-vectors verified.test-vectors
+
+  5.4. Step 4: Submit Code
+
+   Optimized implementations which pass all tests described above should be
+   mailed to <estreamtesting@ecrypt.eu.org>. The mail should contain the
+   following information:
+
+    1. A .tar.gz or .zip attachment containing the following files (and only
+       these files):
+
+         a. an API compliant header file (i.e., the ecrypt-sync.h or
+            ecrypt-sync-ae.h file);
+
+         b. the .c file (and .h files, if any) implementing the primitive;
+
+         c. a Makefile (this file should normally not have been modified);
+
+         d. a file called verified.test-vectors containing the correct test
+            vectors (only if the existing test vectors happened to be
+            incorrect).
+
+    2. A confirmation that the test vectors included in the testing framework
+       have been verified.
+
+    3. A note stating whether or not the implementation should replace the
+       existing reference code.
+
+6. Latest Performance Figures
+
+   The table below links to the most recent reports produced by the eSTREAM
+   testing framework. These reports will regularly be updated as new
+   implementations are submitted. It is important to emphasize that the
+   current results are very preliminary: the implementations currently
+   included in the framework only serve as reference code, and are not
+   necessarily optimized.
+
+   Table 1. Preliminary performance figures
+
+   +----------------------------------------------------------+
+   |         CPU         |  Clock  |  Model  | Latest reports |
+   |---------------------+---------+---------+----------------|
+   | Intel Pentium M     | 1700MHz |  6/9/5  | [revision 115] |
+   |---------------------+---------+---------+----------------|
+   | Intel Pentium 4     | 2.40GHz | 15/2/9  | [revision 115] |
+   |---------------------+---------+---------+----------------|
+   | Intel Pentium 4     | 3.00GHz | 15/4/1  | [revision 115] |
+   |---------------------+---------+---------+----------------|
+   | AMD Athlon 64 3000+ | 1.80GHz | 15/47/0 | [revision 115] |
+   |---------------------+---------+---------+----------------|
+   | PowerPC G4 ^[a]     | 533MHz  |  7410   | [revision 115] |
+   |---------------------+---------+---------+----------------|
+   | Alpha EV5.6         | 400MHz  | 21164A  | [revision 115] |
+   |---------------------+---------+---------+----------------|
+   | HP 9000/785         | 875MHz  |  J6750  | [revision 115] |
+   |---------------------+---------+---------+----------------|
+   | UltraSPARC-III      | 750MHz  |   V9    | [revision 115] |
+   |----------------------------------------------------------|
+   | ^[a] Contributed by D. J. Bernstein.                     |
+   +----------------------------------------------------------+
+
+7. Frequently Asked Questions
+
+   Send your questions to <estreamtesting@ecrypt.eu.org>. Frequently asked
+   questions will be added to this section.
+
+8. Further Information
+
+   For further information about the eSTREAM project, please visit the
+   eSTREAM webpage and the discussion forum.
+
+References
+
+   [JTC-003] Agilent Technologies. JTC 003 Mixed Packet Size Throughput.
+   http://advanced.comms.agilent.com/n2x/docs/journal/JTC_003.html.

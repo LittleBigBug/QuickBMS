@@ -1,0 +1,32 @@
+version: 1.3.0-{build}
+
+environment:
+  matrix:
+  - GENERATOR: MinGW Makefiles
+  - GENERATOR: Visual Studio 14 2015
+  - GENERATOR: Visual Studio 14 2015 Win64
+  - GENERATOR: Visual Studio 14 2015 Win64
+    BUILD_TYPE: shared
+
+configuration: Debug
+
+install:
+  # Workaround for CMake not wanting sh.exe on PATH for MinGW
+  - set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
+  - set PATH=C:\MinGW\bin;%PATH%
+  - cmake --version
+
+before_build:
+  - ps: |
+      mkdir build
+      cd build
+
+      if ($env:BUILD_TYPE -eq 'shared') {
+        cmake -G "$env:GENERATOR" -DCMAKE_BUILD_TYPE="$env:CONFIGURATION" -DBUILD_SHARED_LIBS=ON ..
+      } else {
+        cmake -G "$env:GENERATOR" -DCMAKE_BUILD_TYPE="$env:CONFIGURATION" ..
+      }
+
+build_script: cmake --build . --config %CONFIGURATION%
+
+test_script: ctest -V --output-on-failure --interactive-debug-mode 0 -C %CONFIGURATION%

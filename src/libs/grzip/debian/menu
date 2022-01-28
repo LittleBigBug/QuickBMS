@@ -1,0 +1,10 @@
+?package(sunclock): \
+	needs="X11" \
+	section="Apps/Tools" \
+	title="SunClock" \
+	longtitle="Sun Clock: Show illuminated portion of Earth" \
+	command="/usr/bin/sunclock" \
+	icon32x32="/usr/share/pixmaps/sunclock.xpm" \
+	icon16x16="/usr/share/pixmaps/mini-sunclock-16x16.xpm" \
+	icon="/usr/share/pixmaps/sunclock.xpm" \
+	hints="Clocks,Small,Geo"

@@ -1,0 +1,14 @@
+*.o
+*.obj
+
+*.a
+*.lib
+
+*.so
+*.so.*
+*.dll
+
+*.exe
+
+/build/
+/doc/

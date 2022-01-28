@@ -1,0 +1,32 @@
+#include <windows.h>
+#include "../quickbms_ver.h"
+
+101 ICON quickbms.ico
+1 RT_MANIFEST quickbms.exe.manifest
+1 VERSIONINFO
+FILEVERSION QUICKBMS_VER
+PRODUCTVERSION QUICKBMS_VER
+FILEOS VOS__WINDOWS32
+FILETYPE VFT_APP
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0" // "000004b0" "040904E4"
+        BEGIN
+            VALUE "CompanyName", "Luigi Auriemma, e-mail: me@aluigi.org, web: aluigi.org"
+            VALUE "FileDescription", "QuickBMS"
+            VALUE "FileVersion", "check the version at runtime"
+            VALUE "LegalCopyright", "Luigi Auriemma (GPLv2)"
+            VALUE "ProductName", "QuickBMS"
+            VALUE "ProductVersion", QUICKBMS_VER_STR
+            VALUE "Comments", "http://quickbms.com"
+            VALUE "InternalName", "QuickBMS"
+            VALUE "OriginalFilename", "quickbms.exe"
+        END
+    END
+
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 0x04B0
+    END
+END

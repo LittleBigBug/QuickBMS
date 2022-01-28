@@ -1,0 +1,32 @@
+ECRYPT-NLS Version 2.1
+
+NLS is a synchronous stream cipher supporting optional MAC calculation
+across an arbitrary mix of encrypted and clear text.
+
+
+Compilation instructions:
+
+   1. Unpack the tarball.
+
+   2. Edit "Makefile.config" to define the compilation environment.
+      (if you are using a recent gcc on a little-endian machine,
+      you can skip this step).
+
+   3. Run "make all".
+
+
+After compilation nlsref.o and nlsfast.o provide a reference implementation
+and a fast implementation respectively. See nls.h for documentation on the
+low level API.
+
+In addition, ecrypt-nls.o provides an implementation of the Ecrypt
+synchronous stream cipher API. See http://www.ecrypt.eu.org/stream/api.html
+for documentation on this API.
+
+The nlsref and nlsfast executables are testing and timing front ends.
+   Usage: nlsref [-verbose] -test
+          nlsref [-verbose] -time
+          nlsref [-verbose] [key] [nonce] [count]
+
+Other useful make targets include "test", "time", "clean", and "dist".
+Sophisticated users are referred to the makefiles for more information.

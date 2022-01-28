@@ -1,0 +1,105 @@
+#!/usr/bin/make -f
+#
+# (C) 2002-2006 Roland Rosenfeld <roland@debian.org>, based on
+# Sample debian/rules that uses debhelper.
+# This file is public domain software, originally written by Joey Hess. 
+
+# Uncomment this to turn on verbose mode. 
+#export DH_VERBOSE=1
+
+INSTDIR=`pwd`/debian/grzip
+
+OPTIMIZE=
+ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
+        OPTIMIZE=-O0
+else
+        OPTIMIZE=-O2
+endif
+
+build: build-stamp
+build-stamp:
+	dh_testdir
+
+	$(MAKE) CDEBUGFLAGS="$(OPTIMIZE) -Wall -g" DESTDIR=$(INSTDIR)/usr all
+	touch build-stamp
+
+clean:
+	dh_testdir
+	dh_testroot
+	rm -f build-stamp 
+
+	-$(MAKE) clean
+	dh_clean
+
+install: build
+	dh_testdir
+	dh_testroot
+	dh_clean -k
+	dh_installdirs
+
+	$(MAKE) install DESTDIR=$(INSTDIR)/usr
+
+#	dh_install
+
+# Build architecture-independent files here.
+binary-indep: build install
+	dh_testdir -i
+	dh_testroot -i
+	dh_installchangelogs -i Changelog
+	dh_installdocs -i
+#	dh_installexamples -i
+#	dh_installmenu -i
+#	dh_installdebconf -i
+#	dh_installlogrotate -i
+#	dh_installemacsen -i
+#	dh_installcatalogs -i
+#	dh_installpam -i
+#	dh_installmime -i
+#	dh_installinit -i
+#	dh_installcron -i
+#	dh_installinfo -i
+#	dh_undocumented -i
+#	dh_installman -i
+	dh_link -i
+	dh_compress -i
+	dh_fixperms -i
+#	dh_perl -i
+#	dh_python -i
+	dh_installdeb -i
+	dh_gencontrol -i
+	dh_md5sums -i
+	dh_builddeb -i
+
+# Build architecture-dependent files here.
+binary-arch: build install
+	dh_testdir -a
+	dh_testroot -a
+	dh_installchangelogs -a Changelog
+	dh_installdocs -a
+	dh_installexamples -a
+	dh_installmenu -a
+#	dh_installdebconf -a
+#	dh_installlogrotate -a
+#	dh_installemacsen -a
+#	dh_installcatalogs -a
+#	dh_installpam -a
+#	dh_installmime -a
+#	dh_installinit -a
+#	dh_installcron -a
+#	dh_installinfo -a
+#	dh_undocumented -a
+	dh_installman -a
+	dh_strip -a
+	dh_link -a
+	dh_fixperms -a
+#	dh_perl -a
+#	dh_python -a
+#	dh_makeshlibs -a
+	dh_installdeb -a
+	dh_shlibdeps -a
+	dh_gencontrol -a
+	dh_md5sums -a
+	dh_builddeb -a
+
+binary: binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary install

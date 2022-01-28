@@ -1,0 +1,1 @@
+Original backup of tcc-0.9.27 bin32 plus the source code of the lib folder necessary to avoid errors like "undefined symbol '__lshrdi3'".

@@ -1,0 +1,33 @@
+#!/bin/sh
+
+[ -z "$BASH_VERSION" ] && (which bash > /dev/null 2>&1) && exec bash $0 $*;
+
+# -----------------------------------------------------------------------------
+
+cd "$(cd $(dirname $(which "$0")) && pwd)";
+
+cat <<EOF
+
+ECRYPT Stream Cipher Project
+
+EOF
+
+root=$(cd $(dirname $(which "$0")) && pwd);
+cd "$root";
+
+reports="reports-$HOSTNAME";
+
+mkdir -p "$reports"
+
+./scripts/configure || exit 1;
+
+cd "$reports";
+
+"$root/scripts/run" ..;
+"$root/scripts/collect";
+
+cd ..;
+
+tar -czf "$reports.tar.gz" "$reports" \
+    --exclude '*.o' --exclude '*.obj' --exclude 'info_*' \
+    && echo "The results have been archived in $reports.tar.gz";

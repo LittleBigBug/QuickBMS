@@ -1,0 +1,42 @@
+#
+# Build ignores
+#
+.*
+*.o
+*.o.*
+*.a
+*.so
+*.so.*
+*.1.gz
+Config.in
+
+#
+# Never ignore these
+#
+!.gitignore
+
+#
+# Normal output and testing dirs
+#
+/foo
+/lzjody
+/lzjody.static
+/debug.log
+/log.test.*
+/out.*
+
+#
+# Backups / patches
+#
+*~
+*.orig
+*.rej
+/*.patch
+
+#
+# debugging stuff
+#
+core
+.gdb_history
+.gdbinit
+

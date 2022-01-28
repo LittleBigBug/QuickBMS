@@ -1,0 +1,36 @@
+                ECRYPT  
+File Name       Requirement     Description
+====================================================================
+coversheet.txt      A           ECRYPT Cover Sheet
+IPstatement.txt     D           Intellectual Property Statement
+
+phelix.ps           B           Postscript form of the Phelix paper
+phelix.pdf          B           PDF form of the Phelix paper
+phelix.tex          B           LaTeX source for Phelix paper
+ntfbox.mp           B           Metapost source for figures for phelix.tex
+phelix.mp           B           Metapost source for figures for phelix.tex
+phelix.1            B           EPS figure (from phelix.mp)
+phelix.2            B           EPS figure (from phelix.mp)
+phelix.bbl          B           Bibliography source for phelix.tex
+llncs.cls           B           LaTeX document class definition
+
+makefile            C           makefile for various flavors of Phelix
+ecrypt-config.h     C           ECRYPT header file (unmodified)
+ecrypt-machine.h    C           ECRYPT header file (unmodified)
+ecrypt-portable.h   C           ECRYPT header file (unmodified)
+ecrypt-sync-ae.h    C           ECRYPT header file (modified for Phelix)
+phelix.h            C           Phelix definitions
+phelixKAT.h         C           Phelix KAT vectors
+platform.h          C           Phelix portable definitions (non-ECRYPT)
+phelix.c            C           Phelix portable implementation (ANSI C)
+testPhelix.c        C           Phelix test module (ANSI C)
+ecrypt-test.c       C           ECRYPT test module
+strucmac.inc        C           Structured programming macros for x86 ASM
+phelix86.asm        C           Phelix optimized x86 ASM implementation
+phelix86.obj        C           Phelix optimized x86 ASM object file
+phelix86.S          C           Phelix optimized x86 ASM implementation (gnu assembler)
+strucmac.S          C           Structured programming macros for x86 ASM (gnu assembler)
+
+testPhelix.exe      C           Phelix test program (Windows console app).
+                                Performs validity (KAT, self-consistency) checks
+                                and measures speed of C and ASM implementations

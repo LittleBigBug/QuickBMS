@@ -1,0 +1,2 @@
+A reference portable implementation for F-FCSR-H
+Main file to compile is ffcsrh-sync.c

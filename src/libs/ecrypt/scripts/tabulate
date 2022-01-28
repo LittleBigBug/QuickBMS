@@ -1,0 +1,98 @@
+#!/usr/bin/awk -f
+
+BEGIN { 
+  offset["stream"] = 1;
+  offset["40"] = 2;
+  offset["576"] = 3;
+  offset["1500"] = 4;
+  offset["imix"] = 5;
+  offset["agility"] = 6;
+  offset["key"] = 7;
+  offset["IV"] = 8;
+
+  if (!sort)
+    sort = "stream";
+}
+
+{ sub(/\r/, ""); }
+
+/^Primitive Name:/ {
+  name = $3;
+}
+
+/^Profile:/ {
+  profile = substr($0, 10);
+}
+
+/^Key size:/ { 
+  keysize = $3;
+}
+
+/^IV size:/ { 
+  ivsize = $3;
+}
+
+/^MAC size:/ {
+  macsize = $3;
+}
+
+/^Testing.*:/ {
+  test = $2;
+}
+
+/^Testing speed of IV setup.*:/ {
+  test = "IV";
+}
+
+/^Testing key agility:/ {
+  test = "agility";
+}
+
+/^Encrypted .* packets of .* bytes/ {
+  test = $5;
+}
+
+/Simple Imix/ {
+  test = "imix";
+}
+
+/cycles\/byte/ {
+  cycles[test] = $4;
+}
+
+/cycles\/setup/ {
+  cycles[test] = $5;
+}
+
+/^End of performance measurements/ {
+
+  filename = FILENAME;
+
+  sub("speed_", "", filename);
+  sub("_", " ", filename);
+  split(filename, comp);
+
+  printf("%.10f ", log(1 + cycles[sort] / 1000000) / 100 + offset[sort]);
+  print keysize "-" ivsize "-" macsize ";" \
+    "<tr>" \
+    "<td class='name'><a href='index.html'>" name "</a></td>" \
+    "<td class='profile'>" profile "</td>" \
+    "<td class='size'>" keysize "</td>" \
+    "<td class='size'>" ivsize "</td>" \
+    "<td class='size'>" macsize "</td>" \
+    "<td class='cycles'>" cycles["stream"] "</td>" \
+    "<td class='cycles'>" cycles["40"] "</td>" \
+    "<td class='cycles'>" cycles["576"] "</td>" \
+    "<td class='cycles'>" cycles["1500"] "</td>" \
+    "<td class='cycles'>" cycles["imix"] "</td>" \
+    "<td class='cycles'>" cycles["agility"] "</td>" \
+    "<td class='cycles'>" cycles["key"] "</td>" \
+    "<td class='cycles'>" cycles["IV"] "</td>" \
+    "<td class='variant'>" comp[1] "</td>" \
+    "<td class='compiler'><a href='" FILENAME "'>" comp[2] "</a></td>" \
+    "</tr>";
+
+  macsize = "";
+  split("", cycles);
+}
+

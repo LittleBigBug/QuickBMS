@@ -1,0 +1,31 @@
+body {
+  font: small Verdana, Sans-serif;
+  padding: 20px;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+tr.header {
+  background: #ccc;
+}
+
+tr.benchmark {
+  background: #fcc;
+}
+
+td, th {
+  white-space: nowrap;
+  padding: 0px 5px;
+}
+
+td.profile, td.size, td.variant {
+  text-align: center;
+}
+
+td.cycles {
+  text-align: right;
+}
+
+
