@@ -1,3 +1,15 @@
+2022-01-23  Antonio Diaz Diaz  <antonio@gnu.org>
+
+	* Version 1.13 released.
+	* Set variables AR and ARFLAGS from configure.
+	  (Reported by Hoël Bézier).
+	* main.c: Rename to minilzip.c.
+	* minilzip.c (getnum): Show option name and valid range if error.
+	  (check_lib): Check that LZ_API_VERSION and LZ_version_string match.
+	* Improve several descriptions in manual, '--help', and man page.
+	* lzlib.texi: Change GNU Texinfo category to 'Compression'.
+	  (Reported by Alfred M. Szmidt).
+
 2021-01-02  Antonio Diaz Diaz  <antonio@gnu.org>
 
 	* Version 1.12 released.
@@ -48,7 +60,7 @@
 	* main.c: Compile on DOS with DJGPP.
 	* lzlib.texi: Improve descriptions of '-0..-9', '-m', and '-s'.
 	  Document that 'LZ_(de)compress_finish' can be called repeatedly.
-	* configure: Accept appending to CFLAGS, 'CFLAGS+=OPTIONS'.
+	* configure: Accept appending to CFLAGS; 'CFLAGS+=OPTIONS'.
 	* Makefile.in: Rename targets 'install-bin*' to 'install-lib*'.
 	* Makefile.in: Targets 'install-bin*' now install minilzip.
 	* INSTALL: Document use of CFLAGS+='-D __USE_MINGW_ANSI_STDIO'.
@@ -57,6 +69,7 @@
 
 	* Version 1.10 released.
 	* LZ_compress_finish now adjusts dictionary size for each member.
+	  (Older versions can adjust dictionary size only once).
 	* lzlib.c (LZ_decompress_read): Detect corrupt header with HD=3.
 	* main.c: New option '--loose-trailing'.
 	* main.c (main): Option '-S, --volume-size' now keeps input files.
@@ -235,7 +248,7 @@
 	* Version 0.1 released.
 
 
-Copyright (C) 2009-2021 Antonio Diaz Diaz.
+Copyright (C) 2009-2022 Antonio Diaz Diaz.
 
 This file is a collection of facts, and thus it is not copyrightable,
 but just in case, you have unlimited permission to copy, distribute, and

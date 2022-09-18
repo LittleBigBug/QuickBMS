@@ -63,16 +63,16 @@ typedef struct {
  * -- uninitialized global data (static structures) -- *
  * --------------------------------------------------- */
 
-TINF_TREE sltree    = {{0}}; /* fixed length/symbol tree */
-TINF_TREE sdtree    = {{0}}; /* fixed distance tree */
+static TINF_TREE sltree    = {{0}}; /* fixed length/symbol tree */
+static TINF_TREE sdtree    = {{0}}; /* fixed distance tree */
 
 /* extra bits and base tables for length codes */
-unsigned char length_bits[ALUIGI_30]    = {0};
-unsigned short length_base[ALUIGI_30]   = {0};
+static unsigned char length_bits[ALUIGI_30]    = {0};
+static unsigned short length_base[ALUIGI_30]   = {0};
 
 /* extra bits and base tables for distance codes */
-unsigned char dist_bits[ALUIGI_30]      = {0};
-unsigned short dist_base[ALUIGI_30]     = {0};
+static unsigned char dist_bits[ALUIGI_30]      = {0};
+static unsigned short dist_base[ALUIGI_30]     = {0};
 
 /* special ordering of code length codes */
 const unsigned char clcidx[] = {

@@ -35,7 +35,7 @@
 #ifndef _fastcall
     #define _fastcall
 #endif
-#define STATIC
+//#define STATIC
 
 #define MIN_LENGTH		3		/* minimum to be compressed */
 #define MAXCODELENGTH 0x0f
@@ -43,7 +43,7 @@
 
 typedef unsigned char uchar;
 
-void *ck_alloc(unsigned int len)
+static void *ck_alloc(unsigned int len)
 {
 	void *calloc(),*s;
 	if ((s = calloc(len,1)) == NULL)
@@ -69,10 +69,10 @@ typedef struct huff_icode {
 		} huff_icode;
 
 
-STATIC void _fastcall addbit(huff_tab *cpt);
-STATIC void _fastcall bit_write(register unsigned value,register int length);
-STATIC unsigned short _fastcall bit_read(register int length);
-STATIC unsigned short _fastcall huff_read(huff_icode *icode,int maxbit);
+static void _fastcall addbit(huff_tab *cpt);
+static void _fastcall bit_write(register unsigned value,register int length);
+static unsigned short _fastcall bit_read(register int length);
+static unsigned short _fastcall huff_read(huff_icode *icode,int maxbit);
 /**
 *** generate Huffman codes for every character 
 **/
@@ -85,7 +85,7 @@ STATIC unsigned short _fastcall huff_read(huff_icode *icode,int maxbit);
 //**********************************************************************
 
 
-STATIC void gen_code(huff_code *hufftab,uchar *bitlength,int charset)
+static void gen_code(huff_code *hufftab,uchar *bitlength,int charset)
 {
 	register int loop,bitmask,first,lastcode,length;
 	for (loop = 0; loop < charset;loop++)
@@ -116,7 +116,7 @@ STATIC void gen_code(huff_code *hufftab,uchar *bitlength,int charset)
 
 
 
-STATIC void gen_invtab(huff_icode *inv,huff_code *tab,int charset,int max_bit)
+static void gen_invtab(huff_icode *inv,huff_code *tab,int charset,int max_bit)
 {
 	register int loop,ival,ianz,bitcnt;
 
@@ -135,19 +135,19 @@ STATIC void gen_invtab(huff_icode *inv,huff_code *tab,int charset,int max_bit)
 }
 
 #define HIGH_BIT 16
-unsigned short bit_value = 0;
-unsigned short far *bit_ptr = NULL;
-unsigned int   bit_drin= 0;
+static unsigned short bit_value = 0;
+static unsigned short far *bit_ptr = NULL;
+static unsigned int   bit_drin= 0;
 
 #define dbrange(x) 0			// ((x) >= 0x1b0 && (x) <= 0x1d0)
 
-STATIC void bit_flush(void)
+static void bit_flush(void)
 {
 	if (bit_drin)
 		*bit_ptr++ = bit_value;
 }
 
-STATIC void bit_init(void far *ptr)
+static void bit_init(void far *ptr)
 {
 	bit_ptr  = ptr;
 	bit_drin = 0;
@@ -155,7 +155,7 @@ STATIC void bit_init(void far *ptr)
 }
 
 
-STATIC void _fastcall bit_write(register unsigned value,register int length)		
+static void _fastcall bit_write(register unsigned value,register int length)		
 {
 	int fits = HIGH_BIT - bit_drin;
 
@@ -181,7 +181,7 @@ STATIC void _fastcall bit_write(register unsigned value,register int length)
 		bit_drin = length-fits;
 		}
 }
-STATIC unsigned short _fastcall bit_read(register int maxbit)
+static unsigned short _fastcall bit_read(register int maxbit)
 {
 	register unsigned value;
 
@@ -200,7 +200,7 @@ STATIC unsigned short _fastcall bit_read(register int maxbit)
 	return value;
 }	
 
-STATIC unsigned short _fastcall huff_read(huff_icode *icode,int maxbit)
+static unsigned short _fastcall huff_read(huff_icode *icode,int maxbit)
 {
 	//register int loop,value;unsigned int lmask,*lptr;
     register int value;
@@ -233,15 +233,15 @@ STATIC unsigned short _fastcall huff_read(huff_icode *icode,int maxbit)
 //	   else write (1,1),write (number of Bits,4)
 //****************************************************************************
 
-unsigned bit_write_method = 0;
+static unsigned bit_write_method = 0;
 
 
-int write_cnt0(register uchar *bitlength,int charset,unsigned short test)
+static int write_cnt0(register uchar *bitlength,int charset,unsigned short test)
 {
 	return 0;
 }
 
-void read_cnt0(register uchar *bitlength,int charset)
+static void read_cnt0(register uchar *bitlength,int charset)
 {
 	int mask,bits;
 	for (bits = 0,mask = 1;mask < charset ; mask <<= 1)
@@ -250,7 +250,7 @@ void read_cnt0(register uchar *bitlength,int charset)
 }
 //****************************************************************************
 
-int write_cnt1(register uchar *bitlength,int charset,unsigned short test)
+static int write_cnt1(register uchar *bitlength,int charset,unsigned short test)
 {
 	register int needed,loop,id;
 
@@ -268,7 +268,7 @@ int write_cnt1(register uchar *bitlength,int charset,unsigned short test)
 	return needed;
 }
 
-void read_cnt1(uchar *bitlength,int charset)
+static void read_cnt1(uchar *bitlength,int charset)
 {
 	register int id,val;
 
@@ -286,7 +286,7 @@ void read_cnt1(uchar *bitlength,int charset)
 
 //****************************************************************************
 
-int write_cnt2(register uchar *bitlength,int charset,unsigned short test)
+static int write_cnt2(register uchar *bitlength,int charset,unsigned short test)
 {
 	if (!test)
 		return charset/2;
@@ -297,7 +297,7 @@ int write_cnt2(register uchar *bitlength,int charset,unsigned short test)
 		} while (--charset);
     return(1); //???
 }
-void read_cnt2(register uchar *bitlength,int charset)
+static void read_cnt2(register uchar *bitlength,int charset)
 {
 	do {
 		*bitlength++ = bit_read(4);		// 4 Bit
@@ -306,7 +306,7 @@ void read_cnt2(register uchar *bitlength,int charset)
 
 //****************************************************************************
 
-int write_cnt3(register uchar *bitlength,int charset,unsigned short test)
+static int write_cnt3(register uchar *bitlength,int charset,unsigned short test)
 {
 	register int needed,loop,bitval;
 
@@ -330,7 +330,7 @@ int write_cnt3(register uchar *bitlength,int charset,unsigned short test)
 		}
 	return (needed+7)/8;
 }
-void read_cnt3(register uchar *bitlength,int charset)
+static void read_cnt3(register uchar *bitlength,int charset)
 {
 	register int bitval;
 
@@ -346,7 +346,7 @@ void read_cnt3(register uchar *bitlength,int charset)
 }
 //****************************************************************************
 
-int write_cnt4(register uchar *bitlength,int charset,unsigned short test)
+static int write_cnt4(register uchar *bitlength,int charset,unsigned short test)
 {
 	register int needed,bitval;
 
@@ -371,7 +371,7 @@ int write_cnt4(register uchar *bitlength,int charset,unsigned short test)
 	return (needed+7)/8;
 }
 
-void read_cnt4(register uchar *bitlength,int charset)
+static void read_cnt4(register uchar *bitlength,int charset)
 {
 	register int bitval;
 
@@ -388,8 +388,8 @@ void read_cnt4(register uchar *bitlength,int charset)
 typedef int (*wrf)(register uchar *,int,unsigned short);
 typedef void (*rdf)(register uchar *,int);
 
-wrf write_fun[] = { write_cnt0,write_cnt1,write_cnt2,write_cnt3,write_cnt4};
-rdf read_fun[]  = {  read_cnt0, read_cnt1, read_cnt2, read_cnt3, read_cnt4};
+static wrf write_fun[] = { write_cnt0,write_cnt1,write_cnt2,write_cnt3,write_cnt4};
+static rdf read_fun[]  = {  read_cnt0, read_cnt1, read_cnt2, read_cnt3, read_cnt4};
 
 
 #define LITLEN 256		// characterset for literal characters
@@ -416,7 +416,7 @@ rdf read_fun[]  = {  read_cnt0, read_cnt1, read_cnt2, read_cnt3, read_cnt4};
 unsigned short do_huff    = 0;
 
 
-huff_icode *hs_rd_code(int charset,int maxbit,unsigned short flatlen,int do_flag)
+static huff_icode *hs_rd_code(int charset,int maxbit,unsigned short flatlen,int do_flag)
 {
 	uchar *bitlength;
 	huff_code *code;

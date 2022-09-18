@@ -1447,7 +1447,7 @@ quick_thread(pipeslot_ipc_server, i32 ipc_mode) {
 
         } else if(g_command[0].type == CMD_Encryption) {
 
-            ret = perform_encryption(in, zsize);
+            ret = perform_encryption_and_crchash(in, zsize);
             ret_p = in;
 
         }

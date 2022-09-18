@@ -47,10 +47,10 @@ struct tabentry {
    char z_ch;
 };
 
-void init_dtab ();
-unsigned rd_dcode ();
-void wr_dchar (int);
-void ad_dcode ();
+static void init_dtab ();
+static unsigned rd_dcode ();
+static void wr_dchar (int);
+static void ad_dcode ();
 
 #ifdef FILTER
 /* to send data back to zoofilt */
@@ -71,7 +71,7 @@ static unsigned *stack;
 /*extern*/ char out_buf_adr[OUTBUFSIZ];        /* output buffer */
 /*extern*/ char in_buf_adr[IN_BUF_SIZE];         /* input buffer */
 
-char memflag = 0;                /* memory allocated? flag */
+static char memflag = 0;                /* memory allocated? flag */
 /*extern*/ struct tabentry *table;   /* hash table from lzc.c */
 static unsigned cur_code;
 static unsigned old_code;
@@ -198,7 +198,7 @@ goteof: /* special case for CLEAR then Z_EOF, for 0-length files */
 
 /* rd_dcode() reads a code from the input (compressed) file and returns
 its value. */
-unsigned rd_dcode()
+static unsigned rd_dcode()
 {
    register char *ptra, *ptrb;    /* miscellaneous pointers */
    unsigned word;                     /* first 16 bits in buffer */
@@ -252,14 +252,14 @@ unsigned rd_dcode()
    return (word & masks[nbits]); 
 } /* rd_dcode() */
 
-void init_dtab()
+static void init_dtab()
 {
    nbits = 9;
    max_code = 512;
    free_code = FIRST_FREE;
 }
 
-void wr_dchar (ch)
+static void wr_dchar (ch)
 int ch;
 {
    if (output_offset >= OUTBUFSIZ) {      /* if buffer full */
@@ -276,7 +276,7 @@ int ch;
 } /* wr_dchar() */
 
 /* adds a code to table */
-void ad_dcode()
+static void ad_dcode()
 {
    assert(nbits >= 9 && nbits <= 13);
    assert(free_code <= MAXMAX+1);

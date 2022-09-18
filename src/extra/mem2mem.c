@@ -62,7 +62,6 @@ int mem2mem_ftell(FILE *fd) {
     return mem2mem_in - mem2mem_in_start;
 }
 
-// unsafe
 int mem2mem_fseek(FILE * fd, int offset, int origin) {
     switch(origin) {
         case SEEK_SET: mem2mem_in = mem2mem_in_start + offset; break;
@@ -70,6 +69,8 @@ int mem2mem_fseek(FILE * fd, int offset, int origin) {
         case SEEK_END: mem2mem_in = mem2mem_inl + offset; break;
         default: break;
     }
+    if(mem2mem_in < mem2mem_in_start) mem2mem_in = mem2mem_in_start;
+    if(mem2mem_in > mem2mem_inl)      mem2mem_in = mem2mem_inl;
     return 0;
 }
 

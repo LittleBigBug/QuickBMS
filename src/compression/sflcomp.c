@@ -63,7 +63,7 @@ static byte get_match (const byte *source, word ptr, word source_size,
     ---------------------------------------------------------------------[>]-*/
 
 word
-compress_block (
+sfl_compress_block (
     const byte *src,
     byte *dst,
     word src_size)
@@ -151,7 +151,7 @@ compress_block (
     ---------------------------------------------------------------------[>]-*/
 
 int
-expand_block (
+sfl_expand_block (
     const byte *src,
     byte *dst,
     word src_size,
@@ -268,7 +268,7 @@ static byte get_match (const byte *source, word ptr, word source_size,
     ---------------------------------------------------------------------[>]-*/
 
 word
-compress_rle (
+sfl_compress_rle (
     byte *src,
     byte *dst,
     word src_size)
@@ -382,7 +382,7 @@ compress_rle (
     ---------------------------------------------------------------------[>]-*/
 
 int
-expand_rle (
+sfl_expand_rle (
     const byte *src,
     byte *dst,
     word src_size,
@@ -465,7 +465,7 @@ expand_rle (
     ---------------------------------------------------------------------[>]-*/
 
 word
-compress_nulls (
+sfl_compress_nulls (
     byte *src,
     byte *dst,
     word src_size)
@@ -582,7 +582,7 @@ compress_nulls (
     ---------------------------------------------------------------------[>]-*/
 
 int
-expand_nulls (
+sfl_expand_nulls (
     const byte *src,
     byte *dst,
     word src_size,
@@ -667,7 +667,7 @@ expand_nulls (
     ---------------------------------------------------------------------[>]-*/
 
 word
-compress_bits (
+sfl_compress_bits (
     byte *src,
     byte *dst,
     word src_size)
@@ -828,7 +828,7 @@ compress_bits (
     ---------------------------------------------------------------------[>]-*/
 
 int
-expand_bits (
+sfl_expand_bits (
     const byte *src,
     byte *dst,
     word src_size,

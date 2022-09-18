@@ -94,9 +94,9 @@ typedef unsigned long   ulg;    /*  predefined on some systems) & match zip  */
 #define    FALSE 0
 #endif  /* FALSE */
 #define Trace(X)
-   int   flush                OF((__GPRO__ uch *buf, ulg size, int unshrink));
+   static int   flush                OF((__GPRO__ uch *buf, ulg size, int unshrink));
        typedef int  shrint;          /* for efficiency/speed, we hope... */
-unsigned mask_bits[17] = {
+static unsigned mask_bits[17] = {
     0x0000,
     0x0001, 0x0003, 0x0007, 0x000f, 0x001f, 0x003f, 0x007f, 0x00ff,
     0x01ff, 0x03ff, 0x07ff, 0x0fff, 0x1fff, 0x3fff, 0x7fff, 0xffff

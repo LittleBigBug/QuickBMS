@@ -72,7 +72,7 @@ static const short HuffLength[] = {
     7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
     8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8};
 
-unsigned char lzah_getbyte();
+static unsigned char lzah_getbyte();
 
 static void lzah_inithuf();
 static void lzah_reorder();
@@ -88,10 +88,11 @@ static int Frequ[1000];
 static int ForwTree[1000];
 static int BackTree[1000];
 
+static
 unsigned char   *out_ptr = NULL,
                 *in_ptr  = NULL,
                 *in_ptrl = NULL;
-unsigned char lzah_getbyte(void) {
+static unsigned char lzah_getbyte(void) {
     if(in_ptr >= in_ptrl) return(-1);
     return(*in_ptr++);
 }

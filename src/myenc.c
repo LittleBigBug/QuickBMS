@@ -687,13 +687,19 @@ void inc_setkey(inc_context *ctx, int xor_rot, u64 byte, int size, int inc) {
     ctx->xor_rot    = xor_rot;
     ctx->byte       = byte;
     if(size >= 1) {
-        ctx->size = size;
+        ctx->size = size / 8;
     } else {
-        if(byte > (u64)0xffffffffLL) {
+        u64 tmp = byte;
+        if(inc < 0) {
+            if(tmp < (u64)-inc) tmp = -inc;
+        } else {
+            if(tmp < (u64) inc) tmp = inc;
+        }
+        if(tmp > (u64)0xffffffffLL) {
             ctx->size = 8;
-        } else if(byte > 0xffff) {
+        } else if(tmp > 0xffff) {
             ctx->size = 4;
-        } else if(byte > 0xff) {
+        } else if(tmp > 0xff) {
             ctx->size = 2;
         } else {
             ctx->size = 1;

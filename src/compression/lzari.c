@@ -53,9 +53,9 @@ int GetBit(void)  /* Get one bit (0 or 1) */
 						   if match_length is greater than this */
 #define NIL			N	/* index for root of binary search trees */
 
-unsigned char  text_buf[N + F - 1];	/* ring buffer of size N,
+static unsigned char  text_buf[N + F - 1];	/* ring buffer of size N,
 			with extra F-1 bytes to facilitate string comparison */
-int		match_position, match_length,  /* of longest match.  These are
+static int		match_position, match_length,  /* of longest match.  These are
 			set by the InsertNode() procedure. */
 		lson[N + 1], rson[N + 257], dad[N + 1];  /* left & right children &
 			parents -- These constitute binary search trees. */
@@ -81,10 +81,10 @@ int		match_position, match_length,  /* of longest match.  These are
 #define N_CHAR  (256 - THRESHOLD + F)
 	/* character code = 0, 1, ..., N_CHAR - 1 */
 
-unsigned long int  low = 0, high = Q4, value = 0;
-int  shifts = 0;  /* counts for magnifying low and high around Q2 */
-int  char_to_sym[N_CHAR], sym_to_char[N_CHAR + 1];
-unsigned int
+static unsigned long int  low = 0, high = Q4, value = 0;
+static int  shifts = 0;  /* counts for magnifying low and high around Q2 */
+static int  char_to_sym[N_CHAR], sym_to_char[N_CHAR + 1];
+static unsigned int
 	sym_freq[N_CHAR + 1],  /* frequency for symbols */
 	sym_cum[N_CHAR + 1],   /* cumulative freq for symbols */
 	position_cum[N + 1];   /* cumulative freq for positions */

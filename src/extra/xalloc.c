@@ -147,7 +147,7 @@ static int  g_xdbg_page_guard =
 #endif
 ;
 static xdbg_alloc_t *g_xdbg_alloc       = NULL;
-static int xdbg_return_NULL_on_error    = 0;    // keep it disabled because we don't trust the main program
+//static int xdbg_return_NULL_on_error    = 0;    // keep it disabled because we don't trust the main program
 
 
 

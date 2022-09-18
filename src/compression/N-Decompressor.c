@@ -39,8 +39,8 @@
 #define true    1
 #define false   0
 typedef int bool;
-int stage_1 (long *pointer, char *rompointer, char *bufferpointer);
-void stage_2 (long *pointer, char *rompointer, char *bufferpointer, unsigned long *tiles, short rtiles, bool alt_out, int *out_loc);
+static int stage_1 (long *pointer, char *rompointer, char *bufferpointer);
+static void stage_2 (long *pointer, char *rompointer, char *bufferpointer, unsigned long *tiles, short rtiles, bool alt_out, int *out_loc);
 
 //long __cdecl NDecomp(char *SrcFile, char *DstFile, long Pointer)
 int KENS_Nemesis(unsigned char *in, int insz, unsigned char *out, int outsz)
@@ -128,7 +128,7 @@ int KENS_Nemesis(unsigned char *in, int insz, unsigned char *out, int outsz)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //First stage decompression algorithm
-int stage_1 (long *pointer, char *rompointer, char *bufferpointer)
+static int stage_1 (long *pointer, char *rompointer, char *bufferpointer)
 {
 	unsigned short in_val; //storage for value coming from rom
 	unsigned short out_val = 0; //storage for output value to decompression buffer
@@ -164,7 +164,7 @@ int stage_1 (long *pointer, char *rompointer, char *bufferpointer)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //Second stage decompression algorithm
-void stage_2 (long *pointer, char *rompointer, char *bufferpointer, unsigned long *tiles, short rtiles, bool alt_out, int *out_loc)
+static void stage_2 (long *pointer, char *rompointer, char *bufferpointer, unsigned long *tiles, short rtiles, bool alt_out, int *out_loc)
 {
 	unsigned short rnibbles; //remaining nibbles in this line
 	unsigned long out_val; //output value

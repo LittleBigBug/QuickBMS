@@ -19,7 +19,7 @@
 //typedef char BOOL;
 //typedef unsigned int UINT ;
 
-void qfs_mmemcpy(unsigned char *dest,unsigned char *src,int len) /* LZ-compatible memcopy */
+static void qfs_mmemcpy(unsigned char *dest,unsigned char *src,int len) /* LZ-compatible memcopy */
 {
   while (len--) *(dest++)=*(src++);
 }

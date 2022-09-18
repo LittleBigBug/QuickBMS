@@ -280,7 +280,7 @@ static void read_c_len (void)
     }
 }
 
-ushort decode_c (void)
+static ushort decode_c (void)
 {
     ushort j, mask;
 
@@ -309,7 +309,7 @@ ushort decode_c (void)
     return j;
 }
 
-ushort decode_p (void)
+static ushort decode_p (void)
 {
     ushort j, mask;
 

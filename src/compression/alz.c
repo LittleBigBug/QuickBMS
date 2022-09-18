@@ -19,7 +19,7 @@ typedef struct {
 
 #define ALZ_LSB_MASK(nbits) ((1UL << (nbits)) - 1)
 
-uint8_t alz_get_bit(alz_bitstream *bs)
+static uint8_t alz_get_bit(alz_bitstream *bs)
 {
     uint8_t bit;
 
@@ -39,7 +39,7 @@ uint8_t alz_get_bit(alz_bitstream *bs)
     return bit;
 }
 
-uint32_t alz_get_bits(alz_bitstream *bs, uint8_t bits_todo)
+static uint32_t alz_get_bits(alz_bitstream *bs, uint8_t bits_todo)
 {
     uint8_t bits_read = 0, octet_bits_left;
     uint32_t bits = 0;
@@ -92,7 +92,7 @@ uint32_t alz_get_bits(alz_bitstream *bs, uint8_t bits_todo)
 
 const uint8_t alz_bitcounts[4] = { 2, 4, 6, 10 };
 
-uint8_t alz_alz_get_bitcount(alz_bitstream *bs)
+static uint8_t alz_alz_get_bitcount(alz_bitstream *bs)
 {
     uint8_t i = 0, start_bitnum = bs->bitnum;
 

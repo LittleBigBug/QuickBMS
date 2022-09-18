@@ -1,5 +1,5 @@
 /*
-    Copyright 2009-2021 Luigi Auriemma
+    Copyright 2009-2022 Luigi Auriemma
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -431,6 +431,7 @@ ERROR VAR_NAMESZ < NUMBERSZ
 #define VAR(X)          get_var(CMD.var[X])
 #define VAR32(X)        get_var32(CMD.var[X])
 #define VARPTR(X)       (CMD.num[X] ? get_var_ptr(CMD.var[X]) : NULL)
+#define VARFLOAT(X)     ((VARVAR(X).isnum < 0) ? VARVAR(X).float64 : printf_int_to_float(VAR32(X)))
 #ifdef QUICKBMS_VAR_STATIC  // due to the memory enhancement done on this tool, VARSZ returns ever STRINGSZ for sizes lower than this value... so do NOT trust this value!
 #define VARSZ(X)        (g_force_cstring ? get_var_fullsz(CMD.var[X]) : VARVAR(X).size)
 #else
@@ -531,6 +532,7 @@ char *(*real_strdup)(const char *) = strdup;
 #define QUICKBMS_MIN_INT(X)     (((u_int)1 << (u_int)((sizeof(X) * 8) - 1)))
 #define QUICKBMS_MAX_INT(X)     (((u_int)1 << (u_int)((sizeof(X) * 8) - 1)) - 1)
 #define QUICKBMS_MAX_UINT(X)    (((u_int)1 << (u_int)((sizeof(X) * 8)    )) - 1)
+#define QUICKBMS_RESET_VARNUM   -0x7fffff
 
 /*
 Notes for quickbms 0.9.1:
@@ -553,8 +555,8 @@ int verbose_options(u8 *arg);
 u8 *mystrdup_simple(u8 *str);
 u8 *mystrdup(u8 **old_buff, u8 *str);
 u8 *show_dump(int left, u8 *data, int len, FILE *stream);
-int get_parameter_numbers_int(u8 *str, ...);
-int get_parameter_numbers_i32(u8 *str, ...);
+i32 get_parameter_numbers_int(u8 *str, ...);
+i32 get_parameter_numbers_i32(u8 *str, ...);
 u64 readbase(u8 *data, QUICKBMS_int size, QUICKBMS_int *readn);
 void g_mex_default_init(int file_only);
 int start_bms(int startcmd, int nop, int this_is_a_cycle, int *invoked_if, int *invoked_break, int *invoked_continue, u8 **invoked_label);
@@ -603,6 +605,7 @@ void myexit(int ret);
 #include "io/video.c"
 #include "io/winmsg.c"
 #include "extra/quickrva.h"
+#include "extra/file2mem.c"
 #undef myalloc
 #define MAINPROG
 #include "disasm/disasm.h"

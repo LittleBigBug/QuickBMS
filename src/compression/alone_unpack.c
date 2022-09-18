@@ -107,7 +107,7 @@ static unsigned short cpdist8[] = {
   }\
 }
 
-void PAK_huft_free(PAK_stream * pG, PAK_huft * t) {
+static void PAK_huft_free(PAK_stream * pG, PAK_huft * t) {
   register PAK_huft *p, *q;
   p = t;
   while(p != (PAK_huft *)NULL) {
@@ -117,7 +117,7 @@ void PAK_huft_free(PAK_stream * pG, PAK_huft * t) {
   }
 }
 
-int PAK_huft_build(PAK_stream * pG, unsigned * b, unsigned n, unsigned s, unsigned short * d, unsigned char * e, PAK_huft * t[], unsigned * m) {
+static int PAK_huft_build(PAK_stream * pG, unsigned * b, unsigned n, unsigned s, unsigned short * d, unsigned char * e, PAK_huft * t[], unsigned * m) {
   unsigned a;                   /* counter for codes of length k */
   unsigned c[PAK_BMAX+1];       /* bit length count table */
   unsigned el;                  /* length of EOB code (value 256) */
@@ -281,7 +281,7 @@ int PAK_huft_build(PAK_stream * pG, unsigned * b, unsigned n, unsigned s, unsign
 }
 
 /* Get the bit lengths for a code representation from the compressed stream. */
-int PAK_get_tree(PAK_stream * pG, unsigned * l, unsigned n) {
+static int PAK_get_tree(PAK_stream * pG, unsigned * l, unsigned n) {
   unsigned i;           /* unsigned chars remaining in list */
   unsigned k;           /* lengths entered */
   unsigned j;           /* number of codes */
@@ -302,7 +302,7 @@ int PAK_get_tree(PAK_stream * pG, unsigned * l, unsigned n) {
 }
 
 /* Decompress the imploded data using coded literals and a sliding window (of size 2^(6+bdl) bytes). */
-int PAK_explode_lit(PAK_stream * pG, PAK_huft * tb, PAK_huft * tl, PAK_huft * td, unsigned bb, unsigned bl, unsigned bd, unsigned bdl) {
+static int PAK_explode_lit(PAK_stream * pG, PAK_huft * tb, PAK_huft * tl, PAK_huft * td, unsigned bb, unsigned bl, unsigned bd, unsigned bdl) {
   unsigned long s;      /* bytes to decompress */
   register unsigned e;  /* table entry flag/number of extra bits */
   unsigned n, d;        /* length and index for copy */
@@ -379,7 +379,7 @@ int PAK_explode_lit(PAK_stream * pG, PAK_huft * tb, PAK_huft * tl, PAK_huft * td
 }
 
 /* Decompress the imploded data using uncoded literals and a sliding window (of size 2^(6+bdl) bytes). */
-int PAK_explode_nolit(PAK_stream * pG, PAK_huft * tl, PAK_huft * td, unsigned bl, unsigned bd, unsigned bdl) {
+static int PAK_explode_nolit(PAK_stream * pG, PAK_huft * tl, PAK_huft * td, unsigned bl, unsigned bd, unsigned bdl) {
   unsigned long s;      /* unsigned chars to decompress */
   register unsigned e;  /* table entry flag/number of PAK_extra bits */
   unsigned n, d;        /* length and index for copy */

@@ -54,14 +54,14 @@
 extern "C" {
 #endif
 
-word compress_block (const byte *source, byte *dest, word source_size);
-int  expand_block   (const byte *source, byte *dest, word source_size, int max_dstsz);
-word compress_rle   (      byte *source, byte *dest, word source_size);
-int  expand_rle     (const byte *source, byte *dest, word source_size, int max_dstsz);
-word compress_nulls (      byte *source, byte *dest, word source_size);
-int  expand_nulls   (const byte *source, byte *dest, word source_size, int max_dstsz);
-word compress_bits  (      byte *source, byte *dest, word source_size);
-int  expand_bits    (const byte *source, byte *dest, word source_size, int max_dstsz);
+word sfl_compress_block (const byte *source, byte *dest, word source_size);
+int  sfl_expand_block   (const byte *source, byte *dest, word source_size, int max_dstsz);
+word sfl_compress_rle   (      byte *source, byte *dest, word source_size);
+int  sfl_expand_rle     (const byte *source, byte *dest, word source_size, int max_dstsz);
+word sfl_compress_nulls (      byte *source, byte *dest, word source_size);
+int  sfl_expand_nulls   (const byte *source, byte *dest, word source_size, int max_dstsz);
+word sfl_compress_bits  (      byte *source, byte *dest, word source_size);
+int  sfl_expand_bits    (const byte *source, byte *dest, word source_size, int max_dstsz);
 
 #ifdef __cplusplus
 }

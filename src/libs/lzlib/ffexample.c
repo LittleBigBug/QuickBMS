@@ -1,5 +1,5 @@
 /* File to file example - Test program for the library lzlib
-   Copyright (C) 2010-2021 Antonio Diaz Diaz.
+   Copyright (C) 2010-2022 Antonio Diaz Diaz.
 
    This program is free software: you have unlimited permission
    to copy, distribute, and modify it.
@@ -20,7 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#if defined(__MSVCRT__) || defined(__OS2__) || defined(__DJGPP__)
+#if defined __MSVCRT__ || defined __OS2__ || defined __DJGPP__
 #include <fcntl.h>
 #include <io.h>
 #endif
@@ -178,9 +178,9 @@ int ffmmcompress( FILE * const infile, FILE * const outfile )
   }
 
 
-/* Compresses 'infile' to 'outfile' as a multimember stream with one member
+/* Compress 'infile' to 'outfile' as a multimember stream with one member
    for each line of text terminated by a newline character or by EOF.
-   Returns 0 if success, 1 if error.
+   Return 0 if success, 1 if error.
 */
 int fflfcompress( struct LZ_Encoder * const encoder,
                   FILE * const infile, FILE * const outfile )
@@ -219,7 +219,7 @@ int fflfcompress( struct LZ_Encoder * const encoder,
   }
 
 
-/* Decompresses 'infile' to 'outfile' with automatic resynchronization to
+/* Decompress 'infile' to 'outfile' with automatic resynchronization to
    next member in case of data error, including the automatic removal of
    leading garbage.
 */
@@ -257,7 +257,7 @@ int ffrsdecompress( struct LZ_Decoder * const decoder,
 
 int main( const int argc, const char * const argv[] )
   {
-#if defined(__MSVCRT__) || defined(__OS2__) || defined(__DJGPP__)
+#if defined __MSVCRT__ || defined __OS2__ || defined __DJGPP__
   setmode( STDIN_FILENO, O_BINARY );
   setmode( STDOUT_FILENO, O_BINARY );
 #endif

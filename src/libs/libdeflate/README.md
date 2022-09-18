@@ -1,5 +1,3 @@
-[![Build Status](https://travis-ci.org/ebiggers/libdeflate.svg?branch=master)](https://travis-ci.org/ebiggers/libdeflate)
-
 # Overview
 
 libdeflate is a library for fast, whole-buffer DEFLATE-based compression and
@@ -23,6 +21,8 @@ use this library are also provided:
   except that it does not yet have good streaming support and therefore does not
   yet support very large files
 * benchmark, a program for benchmarking in-memory compression and decompression
+
+For the release notes, see the [NEWS file](NEWS.md).
 
 ## Table of Contents
 
@@ -194,6 +194,7 @@ The libdeflate project itself only provides a C library.  If you need to use
 libdeflate from a programming language other than C or C++, consider using the
 following bindings:
 
+* C#: [LibDeflate.NET](https://github.com/jzebedee/LibDeflate.NET)
 * Go: [go-libdeflate](https://github.com/4kills/go-libdeflate)
 * Java: [libdeflate-java](https://github.com/astei/libdeflate-java)
 * Julia: [LibDeflate.jl](https://github.com/jakobnissen/LibDeflate.jl)

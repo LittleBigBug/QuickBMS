@@ -36,8 +36,8 @@
 #define FALSE   0
 
 //void bitcheck(void);
-int getvalue(unsigned char *pointer, int *offset, char bitmask, char packet_length);
-unsigned char getbits(int number, unsigned char* input, int *offset);
+static int getvalue(unsigned char *pointer, int *offset, char bitmask, char packet_length);
+static unsigned char getbits(int number, unsigned char* input, int *offset);
 
 //namespace
 //{
@@ -272,7 +272,7 @@ int KENS_Enigma(unsigned char *in, int insz, unsigned char *out, int outsz)
 
 /////////////////////////////////////////////////////////////////////////////////////////
 //Getvalue function		- This function extracts a 16-bit value from the compressed data.
-int getvalue(unsigned char *pointer, int *offset, char bitmask, char packet_length)
+static int getvalue(unsigned char *pointer, int *offset, char bitmask, char packet_length)
 {
 	static unsigned short addvalue = 0;
     static unsigned short outvalue = 0;
@@ -301,7 +301,7 @@ int getvalue(unsigned char *pointer, int *offset, char bitmask, char packet_leng
 }
 
 
-unsigned char getbits(int number, unsigned char* input, int *offset)
+static unsigned char getbits(int number, unsigned char* input, int *offset)
 {
     static unsigned char input_buffer;
     static int remaining_bits = 8;

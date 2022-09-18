@@ -5,6 +5,7 @@
 
 #define mem2mem_FILE    ((void *)-0x80000000)
 
+#ifndef MEM2MEM_NO_WRAP
 #define fgetc   mem2mem_fgetc
 #define fputc   mem2mem_fputc
 #define fread   mem2mem_fread
@@ -23,6 +24,7 @@
 #define getc    fgetc
 #undef putc
 #define putc    fputc
+#endif  // MEM2MEM_NO_WRAP
 
 #ifdef __cplusplus
     #define mem2mem_extern  extern "C"

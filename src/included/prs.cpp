@@ -12,7 +12,7 @@ typedef struct {
     unsigned char* srcptr;
     unsigned char* dstptr; } PRS_COMPRESSOR;
 
-void prs_put_control_bit(PRS_COMPRESSOR* pc,unsigned char bit)
+static void prs_put_control_bit(PRS_COMPRESSOR* pc,unsigned char bit)
 {
     *pc->controlbyteptr = *pc->controlbyteptr >> 1;
     *pc->controlbyteptr |= ((!!bit) << 7);
@@ -25,14 +25,14 @@ void prs_put_control_bit(PRS_COMPRESSOR* pc,unsigned char bit)
     }
 }
 
-void prs_put_control_bit_nosave(PRS_COMPRESSOR* pc,unsigned char bit)
+static void prs_put_control_bit_nosave(PRS_COMPRESSOR* pc,unsigned char bit)
 {
     *pc->controlbyteptr = *pc->controlbyteptr >> 1;
     *pc->controlbyteptr |= ((!!bit) << 7);
     pc->bitpos++;
 }
 
-void prs_put_control_save(PRS_COMPRESSOR* pc)
+static void prs_put_control_save(PRS_COMPRESSOR* pc)
 {
     if (pc->bitpos >= 8)
     {
@@ -42,13 +42,13 @@ void prs_put_control_save(PRS_COMPRESSOR* pc)
     }
 }
 
-void prs_put_static_data(PRS_COMPRESSOR* pc,unsigned char data)
+static void prs_put_static_data(PRS_COMPRESSOR* pc,unsigned char data)
 {
     *pc->dstptr = data;
     pc->dstptr++;
 }
 
-unsigned char prs_get_static_data(PRS_COMPRESSOR* pc)
+static unsigned char prs_get_static_data(PRS_COMPRESSOR* pc)
 {
     unsigned char data = *pc->srcptr;
     pc->srcptr++;
@@ -57,7 +57,7 @@ unsigned char prs_get_static_data(PRS_COMPRESSOR* pc)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void prs_init(PRS_COMPRESSOR* pc,void* src,void* dst)
+static void prs_init(PRS_COMPRESSOR* pc,void* src,void* dst)
 {
     pc->bitpos = 0;
     pc->srcptr = (unsigned char*)src;
@@ -68,7 +68,7 @@ void prs_init(PRS_COMPRESSOR* pc,void* src,void* dst)
     pc->dstptr++;
 }
 
-void prs_finish(PRS_COMPRESSOR* pc)
+static void prs_finish(PRS_COMPRESSOR* pc)
 {
     prs_put_control_bit(pc,0);
     prs_put_control_bit(pc,1);
@@ -77,14 +77,14 @@ void prs_finish(PRS_COMPRESSOR* pc)
     prs_put_static_data(pc,0);
 }
 
-void prs_rawbyte(PRS_COMPRESSOR* pc)
+static void prs_rawbyte(PRS_COMPRESSOR* pc)
 {
     prs_put_control_bit_nosave(pc,1);
     prs_put_static_data(pc,prs_get_static_data(pc));
     prs_put_control_save(pc);
 }
 
-void prs_shortcopy(PRS_COMPRESSOR* pc,int offset,unsigned char size)
+static void prs_shortcopy(PRS_COMPRESSOR* pc,int offset,unsigned char size)
 {
     size -= 2;
     prs_put_control_bit(pc,0);
@@ -95,7 +95,7 @@ void prs_shortcopy(PRS_COMPRESSOR* pc,int offset,unsigned char size)
     prs_put_control_save(pc);
 }
 
-void prs_longcopy(PRS_COMPRESSOR* pc,int offset,unsigned char size)
+static void prs_longcopy(PRS_COMPRESSOR* pc,int offset,unsigned char size)
 {
     if (size <= 9)
     {
@@ -114,7 +114,7 @@ void prs_longcopy(PRS_COMPRESSOR* pc,int offset,unsigned char size)
     }
 }
 
-void prs_copy(PRS_COMPRESSOR* pc,int offset,unsigned char size)
+static void prs_copy(PRS_COMPRESSOR* pc,int offset,unsigned char size)
 {
     if ((offset > -0x100) && (size <= 5)) prs_shortcopy(pc,offset,size);
     else prs_longcopy(pc,offset,size);
@@ -269,93 +269,3 @@ unsigned long prs_decompress(void* source,void* dest)
         }
     }
 }
-
-// this function is exactly the same as prs_decompress, except there is no
-// destination stream. it only returns the size.
-unsigned long prs_decompress_size(void* source)
-{
-    unsigned long r3,r5;
-    unsigned long bitpos = 9;
-    unsigned char* sourceptr = (unsigned char*)source;
-    unsigned char* destptr = NULL;
-    unsigned char* destptr_orig = NULL;
-    unsigned char currentbyte/*,lastbyte*/;
-    int flag;
-    int offset;
-    unsigned long x,t;
-
-    currentbyte = sourceptr[0];
-    sourceptr++;
-    for (;;)
-    {
-        bitpos--;
-        if (bitpos == 0)
-        {
-            //lastbyte = currentbyte = sourceptr[0];
-            bitpos = 8;
-            sourceptr++;
-        }
-        flag = currentbyte & 1;
-        currentbyte = currentbyte >> 1;
-        if (flag)
-        {
-            sourceptr++;
-            destptr++;
-            continue;
-        }
-        bitpos--;
-        if (bitpos == 0)
-        {
-            //lastbyte = currentbyte = sourceptr[0];
-            bitpos = 8;
-            sourceptr++;
-        }
-        flag = currentbyte & 1;
-        currentbyte = currentbyte >> 1;
-        if (flag)
-        {
-            r3 = sourceptr[0];
-            offset = (sourceptr[1] << 8) | r3;
-            sourceptr += 2;
-            if (offset == 0) return (unsigned long)(destptr - destptr_orig);
-            r3 = r3 & 0x00000007;
-            r5 = (offset >> 3) | 0xFFFFE000;
-            if (r3 == 0)
-            {
-                r3 = sourceptr[0];
-                sourceptr++;
-                r3++;
-            } else r3 += 2;
-            r5 += (unsigned long)destptr;
-        } else {
-            r3 = 0;
-            for (x = 0; x < 2; x++)
-            {
-                bitpos--;
-                if (bitpos == 0)
-                {
-                    //lastbyte = currentbyte = sourceptr[0];
-                    bitpos = 8;
-                    sourceptr++;
-                }
-                flag = currentbyte & 1;
-                currentbyte = currentbyte >> 1;
-                offset = r3 << 1;
-                r3 = offset | flag;
-            }
-            offset = sourceptr[0] | 0xFFFFFF00;
-            r3 += 2;
-            sourceptr++;
-            r5 = offset + (unsigned long)destptr;
-        }
-        if (r3 == 0) continue;
-        t = r3;
-        for (x = 0; x < t; x++)
-        {
-            r5++;
-            r3++;
-            destptr++;
-        }
-    }
-}
-

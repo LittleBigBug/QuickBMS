@@ -1,5 +1,5 @@
 /*
-    Copyright 2009-2021 Luigi Auriemma
+    Copyright 2009-2022 Luigi Auriemma
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -48,7 +48,10 @@ void *calldll_alloc(u8 *dump, u32 dumpsz, u32 argc, ...);
 #include "libs/lzma/LzmaEnc.h"
 #include "libs/lzma/Lzma2Enc.h"
 #include "included/asura_huffboh.c"
-#include "included/lzss.c"
+//#include "included/lzss.c"
+void lzss_set_window(unsigned char *window, int window_size, int init_chr);
+int unlzss(unsigned char *src, int srclen, unsigned char *dst, int dstlen, unsigned char *parameters);
+int lzss_compress(unsigned char *in, int insz, unsigned char *out, int outsz, unsigned char *parameters);
 #include "included/lzssx.c"
 #include "compression/quicklz.h"
 //#include "compression/unq3huff.c"
@@ -190,7 +193,8 @@ lzf_compress_best (const void *const in_data, unsigned int in_len,
 #include "included/zenpxp.c"
 #include "included/ea_madden.c"
 #include "libs/liblzs/lzs.h"
-#include "included/prs_8ing_compress.c"
+//#include "included/prs_8ing_compress.c"
+int prs_8ing_compress(unsigned char *_sbuf, int slen, unsigned char *_dbuf);
 #include "libs/zlib/contrib/infback9/infback9.h"
 #include "libs/lzw-ab/lzw-lib.h"
 int stac_decompress(unsigned char*buf_in, int len_in, unsigned char*buf_out, int len_out);
@@ -452,6 +456,14 @@ int ungtc(u8 *GtPtr,u8 *DestPtr);
 int analyze_Huf8(unsigned char *infile, unsigned char *outfile /*, int file_length*/, int decoded_length);
 int analyze_LZH8(unsigned char *infile, unsigned char *outbuf /*, long file_length*/, int uncompressed_length);
 int romchiu(unsigned char *infile, int infile_size, unsigned char *out_buf, int nominal_size);
+uint32 rage_xfs_decompress(byte *inbuffer, int insize, byte *outbuffer, int outsize);
+#define NIBRANS_STATIC
+#define NIBRANS_NO_SSE2
+#include "included/nibrans.h"
+int dzx_decompress(int ver, unsigned char *in, int insz, unsigned char *out);
+int runzip_chunk(unsigned char *in, unsigned char *out);
+int melt1 (unsigned char *in, int insz, unsigned char *out);
+int melt2 (unsigned char *in, int insz, unsigned char *out);
 
 
 
@@ -3018,7 +3030,7 @@ int sfl_block_chunked(unsigned char *in, int insz, unsigned char *out, int outsz
         if(!chunk_zsize) break;
         i += 2;
         if((i + chunk_zsize) > insz) break;
-        chunk_size = expand_block(in + i, out + o, chunk_zsize, outsz - o);
+        chunk_size = sfl_expand_block(in + i, out + o, chunk_zsize, outsz - o);
         i += chunk_zsize;
         o += chunk_size;
     }
@@ -3036,7 +3048,7 @@ int sfl_block_chunked_compress(unsigned char *in, int insz, unsigned char *out, 
     while(i < insz) {
         chunk_size = 0x7fff - 1;    // consider copy flag
         if(chunk_size > (insz - i)) chunk_size = insz - i;
-        chunk_zsize = compress_block(in + i, out + o + 2, chunk_size);
+        chunk_zsize = sfl_compress_block(in + i, out + o + 2, chunk_size);
         if(chunk_zsize < 0) return -1;
         out[o]     = chunk_zsize;
         out[o + 1] = chunk_zsize >> 8;
@@ -4628,6 +4640,67 @@ LABEL_13:
 
 
 
+// This is the same algorithm of CO_Decompress from scratch written by me for Frogger2
+int defrogger(unsigned char *in, unsigned char *out) {
+    unsigned char   al, flags, check;
+    unsigned char   *o = out;
+
+    unsigned char    win[4096];
+    memset(win, 0, 4096);
+    int win_ptr = 0;
+
+    while(1) {
+        flags = *in++;
+        for(check = 0; check < 8; check++) {
+            al = *in++;
+            if(flags & 0x80) {
+                if(!al) {
+                    return o - out;
+                }
+                int len = (al & 0xf) + 2;
+                int ptr = (4096 - ((al & 0xf0) << 4)) - *in;
+                in++;
+                while(len--) {
+                    al = win[(win_ptr + ptr) & 4095];
+                    *o++ = al;
+                    win[win_ptr & 4095] = al;
+                    win_ptr++;
+                }
+            } else {
+                    *o++ = al;
+                    win[win_ptr & 4095] = al;
+                    win_ptr++;
+            }
+            flags <<= 1;
+        }
+    }
+    return o - out;
+}
+
+
+
+int defrogger_compress_fake(unsigned char *in, int insz, unsigned char *out) {
+    unsigned char   flags, check;
+    unsigned char   *o = out;
+    unsigned char   *inl = in + insz;
+
+    while(in < inl) {
+        flags = 0;
+        if((inl - in) <= 8) flags = 1 << (7 - (inl - in));
+        *o++ = flags;
+        for(check = 0; check < 8; check++) {
+            if(in >= inl) {
+                *o++ = 0;
+                break;
+            }
+            *o++ = *in++;
+        }
+    }
+    return o - out;
+}
+
+
+
 int unlzlib(u8 *in, int insz, u8 *out, int outsz) {
     int     i,
             o,
@@ -5805,7 +5878,7 @@ int nislzs_compress_fake(unsigned char *in, int insz, unsigned char *out) {
 
 
 
-int mybase64_encode(u8 *data, int len, u8 *buff, int buffsz) {
+int mybase64_encode(u8 *data, int len, u8 *buff, int buffsz, int line_feed) {
     u8      *p,
             a,
             b,
@@ -5818,21 +5891,39 @@ int mybase64_encode(u8 *data, int len, u8 *buff, int buffsz) {
     };
 
     if(len < 0) len = strlen(data);
-    if((((len / 3) << 2) + 6) > buffsz) return -1;
+    //if((((len / 3) * 4) + 6) > buffsz) return -1;
+    u8      *limit = (buffsz < 0) ? NULL : (buff + buffsz);
 
     p = buff;
     do {
         a     = (len >= 1) ? data[0] : 0;
         b     = (len >= 2) ? data[1] : 0;
         c     = (len >= 3) ? data[2] : 0;
+
+        if(limit && (p >= limit)) break;
+        if((line_feed > 0) && !((p - buff) % line_feed) && (p != buff)) *p++ = '\n';
+        if(limit && (p >= limit)) break;
         *p++  = base[(a >> 2) & 63];
+
+        if(limit && (p >= limit)) break;
+        if((line_feed > 0) && !((p - buff) % line_feed)) *p++ = '\n';
+        if(limit && (p >= limit)) break;
         *p++  = base[(((a &  3) << 4) | ((b >> 4) & 15)) & 63];
+
+        if(limit && (p >= limit)) break;
+        if((line_feed > 0) && !((p - buff) % line_feed)) *p++ = '\n';
+        if(limit && (p >= limit)) break;
         *p++  = base[(((b & 15) << 2) | ((c >> 6) &  3)) & 63];
+
+        if(limit && (p >= limit)) break;
+        if((line_feed > 0) && !((p - buff) % line_feed)) *p++ = '\n';
+        if(limit && (p >= limit)) break;
         *p++  = base[c & 63];
+
         data += 3;
         len  -= 3;
     } while(len > 0);
-    *p = 0;
+    *p = 0; // check limit?
 
     for(; len < 0; len++) *(p + len) = '=';
 
@@ -10691,4 +10782,812 @@ int gzip_compress(u8 *in, int insz, u8 *out, int outsz) {
     *o++ = insz >> 24;
     return o - out;
 }
+
+
+
+// Wangan_Decompress* by Allen https://zenhax.com/viewtopic.php?p=68023#p68023
+
+int Wangan_DecompressType1(byte* srcBuffer, byte* outBuffer, uint decmpSize)
+{
+    int cmpflag = 0; int processedCountFlag = 0; int curTempBuffRepeatOffset = 0; int curTempBuffOffset = 0; int repeatCount = 0;
+    static byte tempBuffer[4096];
+    uint tempBufferPtr = 0;
+    uint outBufferPtr = 0;
+    uint srcBufferPtr = 0;
+    byte srcByte;
+    byte srcByte2;
+    int resultFlag = 0;
+    if (decmpSize > 0)
+    {
+        do
+        {
+            tempBufferPtr = (uint)curTempBuffOffset;
+            if (repeatCount != 0)
+            {
+
+                byte repeatByte = tempBuffer[tempBufferPtr];
+                repeatCount -= 1;
+                curTempBuffOffset = (curTempBuffOffset + 1) & 4095;
+                tempBufferPtr = (uint)curTempBuffRepeatOffset;
+                tempBuffer[tempBufferPtr] = repeatByte;
+                curTempBuffRepeatOffset = (curTempBuffRepeatOffset + 1) & 4095;
+                srcByte2 = repeatByte;
+                outBuffer[outBufferPtr] = srcByte2;
+                decmpSize -= 1;
+                outBufferPtr++;
+
+            }
+            else
+            { 
+                resultFlag = cmpflag & processedCountFlag;
+                if (processedCountFlag == 0)
+                {
+                    cmpflag = (Byte)srcBuffer[srcBufferPtr];
+                    processedCountFlag = 0x80;
+                    srcBufferPtr += 1;
+                    resultFlag = cmpflag & processedCountFlag;
+                }
+                if (processedCountFlag != 0)
+                {
+                    processedCountFlag >>= 1;
+                    if (resultFlag != 0)
+                    {
+                        srcByte = srcBuffer[srcBufferPtr];
+                        tempBuffer[curTempBuffRepeatOffset] = srcByte;
+                        curTempBuffRepeatOffset = (curTempBuffRepeatOffset + 1) & 4095;
+                        srcBufferPtr += 1;
+                        tempBufferPtr = (uint)curTempBuffOffset;
+                        srcByte2 = srcByte;
+                        outBuffer[outBufferPtr] = srcByte2;
+                        decmpSize -= 1;
+                        outBufferPtr++;
+                    }
+                    else 
+                    { 
+                        srcByte = srcBuffer[srcBufferPtr];
+                        byte Byte2 = srcBuffer[srcBufferPtr + 1];
+                        ushort flag = (ushort)(((srcByte << 8) & 0xffff) | Byte2); // big endian ushort
+                        ushort offset = (ushort)(flag & 0xffff);
+                        flag = (ushort)((flag >> 12) & 0xf);
+                        srcBufferPtr += 2;
+                        repeatCount = flag + 2;
+                        curTempBuffOffset = offset & 4095;
+                        tempBufferPtr = (uint)curTempBuffOffset;
+
+                    }
+
+                }
+            }
+
+
+        } while (decmpSize != 0);
+
+    }
+    return outBufferPtr;
+}
+
+int Wangan_DecompressType2(byte* srcBuffer, byte* outBuffer, uint decmpSize)
+{
+    byte srcByte = 0; 
+    uint srcBuffPtr = 0; 
+    uint outBuffPtr = 0;
+    short cmpFlag = 0;
+
+    
+    for (cmpFlag = 0; decmpSize != 0; decmpSize -= 1)
+    {
+
+        
+        if (cmpFlag != 0)
+        {
+            goto writeBytes;
+        }
+        else
+        {
+            cmpFlag = (signed char)srcBuffer[srcBuffPtr++];
+            if (cmpFlag < 0)
+            {
+                goto writeBytes;
+            }                    
+            else
+            {
+                srcByte = srcBuffer[srcBuffPtr++];
+                cmpFlag += 2;
+            }
+        }
+    
+    writeBytes:
+        if (cmpFlag <= 0)
+        {
+            cmpFlag += 1;
+            outBuffer[outBuffPtr++] = srcBuffer[srcBuffPtr++];
+        }
+        else
+        {
+            outBuffer[outBuffPtr++] = srcByte;
+            cmpFlag -= 1;
+        }
+
+    }
+    return outBuffPtr;
+}
+
+int Wangan_DecompressType3(byte* srcBuffer, byte* outBuffer, uint decmpSize)
+{
+    int ushortFlag = 0; int curDataIndex = 0; int cmpFlag = 0; int srcBuffPtr = 0; int outBuffPtr = 0;
+    byte srcByte;byte srcByte2; 
+    
+    for(cmpFlag = 0; decmpSize != 0;curDataIndex++)
+    {
+
+        if (cmpFlag == 0)
+        {
+            cmpFlag = (signed char)srcBuffer[srcBuffPtr++];
+
+            if (cmpFlag >= 0)
+            {
+                srcByte = srcBuffer[srcBuffPtr];
+                srcByte2 = srcBuffer[srcBuffPtr + 1];
+                cmpFlag += 2;
+                ushortFlag = (srcByte << 8) | srcByte2;
+                srcBuffPtr += 2;
+            }
+            curDataIndex = 0;
+        }
+        if (cmpFlag <= 0)
+        {                                   
+            outBuffer[outBuffPtr++] = srcBuffer[srcBuffPtr++];
+            if ((curDataIndex & 1) != 0)
+            {
+                cmpFlag += 1;
+            }
+        }
+        else
+        {
+            if ((curDataIndex & 1) != 0)
+            {
+                outBuffer[outBuffPtr++] = (byte)(ushortFlag);
+                cmpFlag -= 1;
+            }
+            else
+            {
+                outBuffer[outBuffPtr++] = (byte)(ushortFlag >> 8);
+            }
+        }
+
+        decmpSize -= 1;
+
+    }
+    return outBuffPtr;
+}
+
+int Wangan_DecompressType5(byte* srcBuffer, byte* outBuffer, uint decmpSize)
+{
+    static struct
+    {
+        int compressionType;//0x0
+        int srcBufferOffset;//0x4
+        int decompressSize;//0x8
+        short cmpFlag;//0xC
+        short processedCountFlag;//0xE
+        short curTempBuffRepeatOffset;//0x10
+        short curTempBuffOffset;//0x12  ç›??Type==5?ê•éÒò¢10éö??ìIòa
+        byte temp16Buffer[16];//0x14
+        byte temp256Buffer[256];//0x14
+        ushort temp512Buffer[256];//0x124
+        short temp2048Buffer[1024];//0x324
+    } comInfo;
+    memset(&comInfo, 0, sizeof(comInfo)); //comInfo.srcBufferOffset = 0;
+    int i, j, ra;
+
+    //Read compressed file header data
+    for (i = 0; i < 512;i++)
+    {
+        comInfo.temp2048Buffer[i*2] = -1;
+        comInfo.temp2048Buffer[i*2+1] = -1;
+    }
+
+    for (i = 0; i < 16; i++)
+    {
+        comInfo.temp16Buffer[i] = srcBuffer[comInfo.srcBufferOffset++];
+    }
+
+    int temp512BuffBaseOfs = 0; //T4
+    ushort temp256BuffBaseOfs = 0; //A4
+    ushort cur512BuffBaseIndex = 0; //A5
+    for (i = 0; i < 16; i++)//i=T5
+    {
+        ushort curTemp512BuffPtr = (ushort)temp512BuffBaseOfs;//A6
+        for (j = 0; j < comInfo.temp16Buffer[i]; j++)//j=A3
+        {
+            
+            comInfo.temp256Buffer[(ushort)(temp256BuffBaseOfs++)] = srcBuffer[comInfo.srcBufferOffset++];
+            comInfo.temp512Buffer[(ushort)(curTemp512BuffPtr++)] = (ushort)(cur512BuffBaseIndex++);
+            temp512BuffBaseOfs = (int)temp512BuffBaseOfs + 1;
+
+        }
+        cur512BuffBaseIndex = (ushort)(cur512BuffBaseIndex << 1);
+    }
+
+
+    temp512BuffBaseOfs = 0; //A6
+    temp256BuffBaseOfs = 0;//T6
+    short curShort;
+    int curTemp2048BuffPtr;
+    for (i = 0; i < 10; i++)//i=T5
+    {
+        
+        comInfo.curTempBuffOffset += comInfo.temp16Buffer[i];
+        ushort curTemp512BuffOfs = (ushort)temp512BuffBaseOfs; //curTemp512BuffPtr = A3
+
+
+        
+        for (j = 0; j < comInfo.temp16Buffer[i]; j++)//j=T7 temp16Buffer=T4
+        {
+            
+            int tempV1 = (9 - i);
+            curTemp2048BuffPtr = (comInfo.temp512Buffer[curTemp512BuffOfs] << tempV1);
+            int count = 1 << tempV1;
+
+            
+            for (ra = 0; ra < count; ra++) //curTemp2048BuffPtr = T8
+            {
+                byte t8_b = comInfo.temp256Buffer[temp256BuffBaseOfs];
+                ushort a4 = (ushort)(((ushort)i + 1) << 8);
+                curShort = (short)(t8_b | a4);
+                comInfo.temp2048Buffer[curTemp2048BuffPtr] = curShort;                        
+                curTemp2048BuffPtr++;
+                
+            }
+            
+            curTemp512BuffOfs++;
+            temp512BuffBaseOfs++;
+            temp256BuffBaseOfs++;
+
+        }
+
+    }
+
+
+    //Decompress data
+
+    uint cmpFlag = 0;
+    int temp16BuffPtr = 0; // $a3
+    int temp256BuffPtr = 0; // $a4
+    int temp512BuffPtr = 0; // $a5
+    //int temp2048BuffPtr = 0; // $a6
+    uint outBuffPtr = 0;
+    int curIndex;
+    int srcByte;
+    int cur2048ShortValue;
+    int curTemp16BuffPtr; // $s0
+    int baseOfs; // $t6
+    int curTemp16BuffByte; // $s3
+    int _curTemp512BuffPtr = 0;
+    short curTempBuffRepeatOffset = 0;
+    
+    for (/*temp2048BuffPtr = 0*/; decmpSize!=0;outBuffPtr++)
+    {
+        curIndex = (curTempBuffRepeatOffset - 10);
+        if (curTempBuffRepeatOffset < 16)
+        {
+            do
+            {
+                srcByte = srcBuffer[comInfo.srcBufferOffset++];
+                curTempBuffRepeatOffset = (short)(curTempBuffRepeatOffset + 8);
+                cmpFlag = (cmpFlag << 8) | (uint)srcByte;
+            }
+            while (curTempBuffRepeatOffset < 16);
+            curIndex = (curTempBuffRepeatOffset - 10);
+        }
+        cur2048ShortValue = comInfo.temp2048Buffer[((cmpFlag >> curIndex) & 0x3FF)];
+        curTemp16BuffPtr = 11;
+        if (cur2048ShortValue == -1)
+        {
+            _curTemp512BuffPtr = temp512BuffPtr + comInfo.curTempBuffOffset;
+            int s1 = comInfo.curTempBuffOffset;
+            baseOfs = 2048;
+            do
+            {
+                uint v = (cmpFlag >> (curTempBuffRepeatOffset - curTemp16BuffPtr));
+                int v1 = (baseOfs - 1);
+                cur2048ShortValue = (short)(v1 & v);
+                curTemp16BuffByte = comInfo.temp16Buffer[curTemp16BuffPtr - 1];
+                if (comInfo.temp16Buffer[curTemp16BuffPtr - 1] > 0)
+                {
+                    int s2 = _curTemp512BuffPtr;
+                    do
+                    {
+                        if (cur2048ShortValue == comInfo.temp512Buffer[s2])
+                        {
+                            cur2048ShortValue = comInfo.temp256Buffer[s1];
+                            curTempBuffRepeatOffset = (short)(curTempBuffRepeatOffset - curTemp16BuffPtr);
+                            goto writebyte;
+                        }
+                        curTemp16BuffByte = (int)curTemp16BuffByte - 1;
+
+                        s2 += 1;
+                        _curTemp512BuffPtr += 1;
+                        s1 += 1;
+                    } while (curTemp16BuffByte > 0);
+                    curTemp16BuffPtr = curTemp16BuffPtr + 1;
+                }
+                else
+                {
+                    curTemp16BuffPtr = curTemp16BuffPtr + 1;
+                }
+                baseOfs = 1 << curTemp16BuffPtr;
+            } while (curTemp16BuffPtr < 17);
+        }
+        else
+        {
+            curTempBuffRepeatOffset = (short)(curTempBuffRepeatOffset - (cur2048ShortValue >> 8));
+
+        }
+    writebyte:
+        outBuffer[outBuffPtr] = (byte)cur2048ShortValue;
+        decmpSize -= 1;
+    }
+    return outBuffPtr;
+}
+
+
+
+/* LZ48 simple C source file / crappy version by roudoudou - Flower Corp. 2016 */
+int LZ48_decode(unsigned char *data, unsigned char *odata)
+{
+	int HL=0,DE=0;
+	int literallength,matchlength,HLmatch;
+
+	odata[DE++]=data[HL++];
+
+	while (1) {
+		literallength=(data[HL] & 0xF0)>>4;
+		matchlength=(data[HL++] & 0xF);
+
+		if (literallength==15) {
+			while (data[HL]==255) {
+				literallength+=255;
+				HL++;
+			}
+			literallength+=data[HL++];
+		}
+
+		while (literallength>0) {
+			odata[DE++]=data[HL++];
+			literallength--;
+		}
+
+		/* matchkey */
+		if (matchlength==15) {
+			while (data[HL]==255) {
+				matchlength+=255;
+				HL++;
+			}
+			matchlength+=data[HL++];
+		}
+		matchlength+=3;
+		if (data[HL]==0xFF) return DE; else HLmatch=DE-(data[HL++]+1);
+		
+		while (matchlength) {
+			odata[DE++]=odata[HLmatch++];
+			matchlength--;
+		}
+	}
+    return DE;
+}
+
+
+
+extern char *exo_decrunch(const char *in, char *out);
+
+typedef int exo_read_crunched_byte(zlib_func_t *data);
+extern void *exo_decrunch_new(unsigned short int max_offset, exo_read_crunched_byte *read_byte, void *read_data);
+extern int exo_read_decrunched_byte(void *ctx);
+extern void exo_decrunch_delete(void *ctx);
+
+int myexo_read_crunched_byte(zlib_func_t *data) {
+    if(data->p >= data->l) return -1;
+    int c = data->p[0];
+    data->p++;
+    return c;
+}
+
+int myexo_decrunch_new(u8 *in, int zsize, u8 *out, int size) {
+    int     o = 0;
+
+    zlib_func_t myin;
+    myin.p = in;
+    myin.l = in + zsize;
+
+    void *ctx;
+    int c;
+
+    ctx = exo_decrunch_new(65535, myexo_read_crunched_byte, &myin);
+
+    while((c = exo_read_decrunched_byte(ctx)) >= 0)
+    {
+        if(o >= size) break;
+        out[o++] = c;
+    }
+
+    exo_decrunch_delete(ctx);
+    return o;
+}
+
+
+
+// adapted from Bitbuster v1.2 of Team Bomba
+
+int unbitbuster_ReadGammaValue(u8 *in, u8 *_bitchr, u8 *_bitpos)
+{
+    u8 bitchr=*_bitchr,bitpos=*_bitpos;
+int value = 1;
+int bit_count = 0;
+
+	//determine number of bits used to encode gamma value
+	while (UNZBITS(in, 1))
+		bit_count++;
+
+	//get more bits of gamma value while needed
+	while (bit_count--)
+	{
+		//shift bits
+		value <<= 1;
+
+		//get new bit
+		if (UNZBITS(in, 1))
+			value++;
+	}
+
+	//correct gamma value
+	value--;
+
+    *_bitchr=bitchr;*_bitpos=bitpos;
+	return value;
+}
+
+int unbitbuster(u8 *in, int zsize, u8 *output_data, int original_length) {
+    u8 bitchr=0,bitpos=0;
+
+    int output_position = 0;
+	while (output_position < original_length)
+	{
+		//get data type
+		if (UNZBITS(in, 1))
+		{	//1 = packed data
+			int offset = UNZBITS(in, 8);
+
+			//rle type?
+			if (offset == 0)
+			{	//rle
+
+				//get repeat length
+				int repeat_length = unbitbuster_ReadGammaValue(in, &bitchr, &bitpos) + 2;
+
+				memset(output_data + output_position, output_data[output_position-1], repeat_length); 
+
+				output_position += repeat_length;
+			}
+			else
+			{	//if offset extension mark set
+				if (offset & 128)
+				{	//offset uses 11 bits
+					
+					//clear extension mark
+					offset &= 127;	
+
+					//get fourm more bits
+					offset += UNZBITS(in, 1) << 10;
+					offset += UNZBITS(in, 1) << 9;
+					offset += UNZBITS(in, 1) << 8;
+					offset += UNZBITS(in, 1) << 7;
+				}
+
+				//calculate source position
+				int source_position = output_position - offset - 1;
+
+				//get match length
+				int match_length = unbitbuster_ReadGammaValue(in, &bitchr, &bitpos) + 2;
+
+				//copy data 
+				while(match_length--)
+					output_data[output_position++] = output_data[source_position++];
+			}
+		}
+		else
+		{	//0 = literal byte
+			output_data[output_position++] = UNZBITS(in, 8);
+		}
+	}
+    return output_position;
+}
+
+
+
+/* lazy.cpp v1.0 - LZ77 compressor
+
+(C) 2012 Dell Inc. Written by Matt Mahoney
+Licensed under GPL v3, http://www.gnu.org/copyleft/gpl.html
+*/
+int unlazy(u8 *in, int insz, u8 *out) {
+    const int BUFSIZE=1<<24;
+    static u8  *buf = NULL;
+    if(!buf) buf = malloc(BUFSIZE);
+
+    u8  *inl = in + insz;
+    int o = 0;
+
+    unsigned state=0; // 0..4=expect new code, match len, offset, lit len, lit
+    unsigned len=0;   // match or literal length
+    unsigned ptr=0;   // next buf location to write
+    unsigned bits=0;  // input bits, LSB first
+    unsigned m=0;     // expected offset bits
+    unsigned n=0;     // number of bits in bits (0..32)
+    int c;            // input byte
+    while (in < inl) {
+      c=*in++;
+      bits+=c<<n;
+      n+=8;
+      if (state==0) {  // expect new code
+        len=1;
+        if (bits&3) {  // match code jj,kkk
+          m=((bits&3)-1)*8;  // read offset bits (0..23)
+          bits>>=2;
+          m+=bits&7;
+          bits>>=3;
+          n-=5;
+          state=1;
+        }
+        else {  // literal, discard 00
+          bits>>=2;
+          n-=2;
+          state=3;
+        }
+      }
+      while (state==1 && n>=3) {  // expect match length u,nn
+        if (bits&1) {
+          bits>>=1;
+          len+=len+(bits&1);
+          bits>>=1;
+          n-=2;
+        }
+        else {
+          bits>>=1;
+          len<<=2;
+          len+=bits&3;
+          bits>>=2;
+          n-=3;
+          state=2;
+        }
+      }
+      if (state==2 && n>=m) {  // expect m offset bits
+        //assert(m<24);
+        //assert(len>0);
+        unsigned p=ptr-(bits&((1<<m)-1)|(1<<m));  // match location
+        while (len--)  // output match
+          out[o++] = (buf[ptr++&(BUFSIZE-1)]=buf[p++&(BUFSIZE-1)]);
+        bits>>=m;
+        n-=m;
+        state=0;
+      }
+      while (state==3 && n>=2) {  // expect literal length
+        //assert(len>0);
+        if (bits&1) {
+          bits>>=1;
+          len+=len+(bits&1);
+          bits>>=1;
+          n-=2;
+        }
+        else {
+          bits>>=1;
+          --n;
+          state=4;
+        }
+      }
+      if (state==4 && n>=8) {  // expect len literals
+        //assert(len>0);
+        out[o++] = (buf[ptr++&(BUFSIZE-1)]=bits&255);
+        bits>>=8;
+        n-=8;
+        if (--len<1) state=0;
+        //assert(n<8);
+      }
+    }
+    return o;
+}
+
+
+
+// LZRS Asobo:
+// https://encode.su/threads/3668-Identify-Understand-Asobo-LZRS-Compression
+// https://encode.su/threads/3625-Derive-LZSS-Compression-Algorithm-From-Decompression-Algorithm-(Asobo-LZ-Variant)
+uint lzss_fuel_decompress( const byte* inpptr, uint inplen,  byte* outptr, uint outlen,  uint is_in_place ) {
+  const uint WINDOW_LOG = 14; // 16k window
+  const uint WINDOW_MASK = (1<<WINDOW_LOG)-1; //0x3fff;
+  const uint MIN_MATCH_LEN = 3;
+  const uint MIN_DISTANCE = 1;
+  uint i,j, length, len,dist, temp,flag, t;
+ 
+  const byte* in_beg_ptr = inpptr;
+  byte* beg_ptr = outptr;
+  byte* end_ptr = outptr + outlen;
+ 
+  while(1) {
+	// printf("%04x", (uint)(inpptr - in_beg_ptr));
+    flag = (inpptr[0]<<24)+(inpptr[1]<<16)+(inpptr[2]<<8)+(inpptr[3]); inpptr+=4;
+	//printBits(sizeof(flag), &flag);
+	// printf(":");
+    t = flag & 3;
+    uint temp_wlog = WINDOW_LOG - t;
+    uint temp_mask = WINDOW_MASK >> t;
+
+    for( i=0; i<30; ++i,flag<<=1 ) {
+
+      if( (flag&0x80000000)!=0 ) {
+        temp = (inpptr[0]<<8)+inpptr[1]; inpptr += 2;
+        dist = (temp & temp_mask) + MIN_DISTANCE;
+        len = (temp >> temp_wlog) + MIN_MATCH_LEN;
+		// printf(" (%x,%x)", (uint)(outptr-dist-beg_ptr), len);
+        for( j=0; j<len; j++ ) outptr[j] = (outptr-dist)[j];
+        outptr += len;
+      } else {
+		// printf(" %02x", *inpptr);
+        *outptr++ = *inpptr++;
+      }
+ 
+      if( (outptr>=end_ptr) || (is_in_place && (outptr>=inpptr)) ) {
+		  // puts("");
+		  return outptr-beg_ptr;
+	  }
+    }
+
+	// puts("");
+  }
+}
+
+
+
+// by Shelwien https://encode.su/threads/3147-Reverse-Engineering-Custom-LZ-Variant?p=60913&viewfull=1#post60913
+int lzrhys(u8 *f, u8 *out) {
+    u8  *g = out;
+
+    const int  winlog=12;
+    const int  winsize=(1<<winlog);
+    const int  winmask=(1<<winlog)-1;
+    byte win[winsize];
+
+  uint c,d,r,l,i,j,flag,flagmask,flagbit,pos,lenbits=2;
+
+  for( i=0; i<winsize; i++ ) win[i]=0;
+
+  flagbit=1;
+
+  for( pos=0;; ) {
+
+    if( flagbit<=1 ) {
+      flagmask = (*f++)<<24;
+      flagmask|= (*f++)<<16;
+      flagmask|= (*f++)<<8;
+      flagmask|= (*f++);
+      flagbit = 32-1;
+      lenbits = 2 + (flagmask&3);
+    }
+
+    flag = (flagmask>>flagbit)&1; flagbit--;
+
+    c = (*f++); if( c==-1 ) break;
+
+    if( flag==0 ) {
+      // literal
+      win[ (pos++)&winmask ] = c; *g++ = c;
+
+    } else {
+      // match
+
+      d = (*f++);
+
+j = (c<<8)+d;
+
+//      l = (c & 15) + 3;
+//      d = d + (c>>4)*256;
+
+      l = ((c>>(8-lenbits))&31) + 3;
+      d = (d + ((byte)(c<<lenbits)>>lenbits)*256)+1;//(flagmask&1);
+
+      for( j=0; j<l; j++ ) {
+        c = win[ (pos-d)&winmask ];
+        win[ (pos++)&winmask ] = c; *g++ = c;
+      }
+
+    }
+
+  }
+    return g - out;
+}
+
+
+
+// LZE
+// Copyright (C)1995,2008 GORRY.
+int	LZE_decode(u8 *infile, u8 *outfile)
+{
+    u8  *o = outfile;
+const int	N = 16384;
+const int	F = 256;
+static unsigned char	*text = NULL;
+if(!text) text = malloc(N+F);
+
+	unsigned int	flags;
+	int	flagscnt;
+	int	i, j, k, r, c;
+	unsigned int	u;
+	int	bit;
+
+#define	LZE_GetBit()						\
+{								\
+	if ((--flagscnt)<0) {					\
+		c = *infile++;	\
+		flags = c;					\
+		flagscnt += 8;					\
+	}							\
+	bit = ((flags<<=1) & 256 );				\
+}								
+
+	r = N-F;
+#if BZCOMPATIBLE
+	c = *infile++;
+	*o++ = c;
+	text[r++] = c;
+	r &= (N-1);
+#endif
+	flags = 0;
+	flagscnt = 0;
+	do {
+		LZE_GetBit();
+		if (bit) {
+						/* 1 */
+			c = *infile++;
+			*o++ = c;
+			text[r++] = c;
+			r &= (N-1);
+		} else {
+			LZE_GetBit();
+			if (bit) {
+						/* 01 */
+				i = *infile++;
+				j = *infile++;
+				u = (i<<8) | j;
+				j = u&7;
+				u >>= 3;
+				if ( j == 0 ) {
+					j = *infile++;
+					if ( j==0 ) goto Quit;
+					j++;
+				} else {
+					j += 2;
+				}
+				i = r-(8192-u);
+			} else {
+						/* 00 */
+				LZE_GetBit();
+				j  = ( bit ? 2 : 0 );
+				LZE_GetBit();
+				j += ( bit ? 1 : 0 );
+				j += 2;
+				i = *infile++;
+				i = r-(256-i);
+			}
+			for ( k=0; k<j; k++ ) {
+				c = text[(i+k) & (N-1)];
+				*o++ = c;
+				text[r++] = c;
+				r &= (N-1);
+			}
+		}
+	} while (!0);
+  Quit:;
+  return o - outfile;
+}
+
 

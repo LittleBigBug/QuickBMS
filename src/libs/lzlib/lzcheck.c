@@ -1,5 +1,5 @@
 /* Lzcheck - Test program for the library lzlib
-   Copyright (C) 2009-2021 Antonio Diaz Diaz.
+   Copyright (C) 2009-2022 Antonio Diaz Diaz.
 
    This program is free software: you have unlimited permission
    to copy, distribute, and modify it.
@@ -133,10 +133,11 @@ static void xclose_decoder( struct LZ_Decoder * const decoder,
   }
 
 
-/* Returns the next (usually newline-terminated) chunk of data from file.
+/* Return the next (usually newline-terminated) chunk of data from file.
    The size returned in *sizep is always <= buffer_size.
-   If sizep is a null pointer, rewinds the file, resets state, and returns.
-   If file is at EOF, returns an empty line. */
+   If sizep is a null pointer, rewind the file, reset state, and return.
+   If file is at EOF, return an empty line.
+*/
 static const uint8_t * next_line( FILE * const file, int * const sizep )
   {
   static int l = 0;
@@ -332,7 +333,7 @@ int main( const int argc, const char * const argv[] )
 
   if( argc < 2 )
     {
-    fputs( "Usage: lzcheck filename.txt...\n", stderr );
+    fputs( "Usage: lzcheck [-m|-s] filename.txt...\n", stderr );
     return 1;
     }
 

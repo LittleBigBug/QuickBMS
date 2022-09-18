@@ -1,5 +1,5 @@
 /* Buffer to buffer example - Test program for the library lzlib
-   Copyright (C) 2010-2021 Antonio Diaz Diaz.
+   Copyright (C) 2010-2022 Antonio Diaz Diaz.
 
    This program is free software: you have unlimited permission
    to copy, distribute, and modify it.
@@ -28,9 +28,9 @@
 #endif
 
 
-/* Returns the address of a malloc'd buffer containing the file data and
+/* Return the address of a malloc'd buffer containing the file data and
    the file size in '*file_sizep'.
-   In case of error, returns 0 and does not modify '*file_sizep'.
+   In case of error, return 0 and do not modify '*file_sizep'.
 */
 uint8_t * read_file( const char * const name, long * const file_sizep )
   {
@@ -73,10 +73,10 @@ uint8_t * read_file( const char * const name, long * const file_sizep )
   }
 
 
-/* Compresses 'insize' bytes from 'inbuf'.
-   Returns the address of a malloc'd buffer containing the compressed data,
+/* Compress 'insize' bytes from 'inbuf'.
+   Return the address of a malloc'd buffer containing the compressed data,
    and the size of the data in '*outlenp'.
-   In case of error, returns 0 and does not modify '*outlenp'.
+   In case of error, return 0 and do not modify '*outlenp'.
 */
 uint8_t * bbcompressl( const uint8_t * const inbuf, const long insize,
                        const int level, long * const outlenp )
@@ -152,10 +152,10 @@ uint8_t * bbcompressl( const uint8_t * const inbuf, const long insize,
   }
 
 
-/* Decompresses 'insize' bytes from 'inbuf'.
-   Returns the address of a malloc'd buffer containing the decompressed
+/* Decompress 'insize' bytes from 'inbuf'.
+   Return the address of a malloc'd buffer containing the decompressed
    data, and the size of the data in '*outlenp'.
-   In case of error, returns 0 and does not modify '*outlenp'.
+   In case of error, return 0 and do not modify '*outlenp'.
 */
 uint8_t * bbdecompressl( const uint8_t * const inbuf, const long insize,
                          long * const outlenp )
@@ -230,10 +230,10 @@ int full_test( const uint8_t * const inbuf, const long insize )
   }
 
 
-/* Compresses 'insize' bytes from 'inbuf' to 'outbuf'.
-   Returns the size of the compressed data in '*outlenp'.
-   In case of error, or if 'outsize' is too small, returns false and does
-   not modify '*outlenp'.
+/* Compress 'insize' bytes from 'inbuf' to 'outbuf'.
+   Return the size of the compressed data in '*outlenp'.
+   In case of error, or if 'outsize' is too small, return false and do not
+   modify '*outlenp'.
 */
 bool bbcompress( const uint8_t * const inbuf, const int insize,
                  const int dictionary_size, const int match_len_limit,
@@ -267,10 +267,10 @@ bool bbcompress( const uint8_t * const inbuf, const int insize,
   }
 
 
-/* Decompresses 'insize' bytes from 'inbuf' to 'outbuf'.
-   Returns the size of the decompressed data in '*outlenp'.
-   In case of error, or if 'outsize' is too small, returns false and does
-   not modify '*outlenp'.
+/* Decompress 'insize' bytes from 'inbuf' to 'outbuf'.
+   Return the size of the decompressed data in '*outlenp'.
+   In case of error, or if 'outsize' is too small, return false and do not
+   modify '*outlenp'.
 */
 bool bbdecompress( const uint8_t * const inbuf, const int insize,
                    uint8_t * const outbuf, const int outsize,

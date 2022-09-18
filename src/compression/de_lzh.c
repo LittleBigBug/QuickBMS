@@ -9,14 +9,14 @@
 
 
 // bits_be.c
-unsigned int bit_be_bitbuf;
-char *bit_be_filestart;
-int bit_be_inbytes;
+static unsigned int bit_be_bitbuf;
+static char *bit_be_filestart;
+static int bit_be_inbytes;
 
 static unsigned int bit_be_subbitbuf;
 static int bit_be_bitcount;
 
-void bit_be_fillbuf(n)  /* Shift bit_be_bitbuf n bits left, read n bits */
+static void bit_be_fillbuf(n)  /* Shift bit_be_bitbuf n bits left, read n bits */
 int n;
 {
     bit_be_bitbuf <<= n;
@@ -34,7 +34,7 @@ int n;
     bit_be_bitbuf &= WORDMASK;
 }
 
-unsigned int bit_be_getbits(n)
+static unsigned int bit_be_getbits(n)
 int n;
 {
     unsigned int x;

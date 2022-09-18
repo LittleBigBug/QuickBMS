@@ -90,7 +90,8 @@
  *  __VMS_XOPEN         Supports XOPEN functions
  */
 
-#if (defined (__64BIT__) || defined (__x86_64__))
+//#if (defined (__64BIT__) || defined (__x86_64__))
+#if (defined (__64BIT__) || defined (__x86_64__) || defined (__aarch64__))
 #    define __IS_64BIT__                /*  May have 64-bit OS/compiler      */
 #else
 #    define __IS_32BIT__                /*  Else assume 32-bit OS/compiler   */
@@ -357,12 +358,12 @@ typedef unsigned short  Bool;           /*  Boolean TRUE/FALSE value         */
 typedef unsigned char   byte;           /*  Single unsigned byte = 8 bits    */
 typedef unsigned short  dbyte;          /*  Double byte = 16 bits            */
 typedef unsigned short  word;           /*  Alternative for double-byte      */
-typedef unsigned long   dword;          /*  Double word >= 32 bits           */
-#if (defined (__IS_32BIT__))
-typedef unsigned long   qbyte;          /*  Quad byte = 32 bits              */
-#else
+//typedef unsigned long   dword;          /*  Double word >= 32 bits           */
+//#if (defined (__IS_32BIT__))
+//typedef unsigned long   qbyte;          /*  Quad byte = 32 bits              */
+//#else
 typedef unsigned int    qbyte;          /*  Quad byte = 32 bits              */
-#endif
+//#endif
 typedef void (*function) (void);        /*  Address of simple function       */
 #define local static void               /*  Shorthand for local functions    */
 

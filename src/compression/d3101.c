@@ -33,6 +33,7 @@
 /* Header Files */
 
 #include <stdio.h>
+#include <string.h>
 #if defined(unix) || defined(__osf__) || defined(__APPLE__)
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -68,8 +69,8 @@ static unsigned short cdmsk[17] =
 static int      inp_code_len = 9;
 static int      inp_len = 0;
 static long     inp_code_remainder = 0;
-long            inp_byte_cnt = 0;
-long            out_byte_cnt = 0;
+static long     inp_byte_cnt = 0;
+static long     out_byte_cnt = 0;
 static int      EOR_flag = 0;
 static int      EOF_flag = 0;
 static int      ERROR_flag = 0;
@@ -162,7 +163,7 @@ static unsigned char fifo[128];	/* fifo */
 *                      and output out to stdout                              *
 *                                                                            *
 *****************************************************************************/
-extern void
+static void
 dcmpr()
 {
     register short code;	/* working code */

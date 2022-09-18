@@ -1,5 +1,5 @@
 /*
-    Copyright 2009-2021 Luigi Auriemma
+    Copyright 2009-2022 Luigi Auriemma
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -805,6 +805,29 @@ quit:
 
 
 
+void add_var_reimport(variable_t *var, u_int offset, int fd, int type, int size) {
+    if(g_reimport && var) { // before it was < 0 but now let's keep it universal
+        memset(&var->reimport, 0, sizeof(variable_reimport_t));
+        var->reimport.offset   = offset;
+        var->reimport.fd       = fd;
+        var->reimport.type     = type;
+        var->reimport.size     = size;
+        if(fdnum_uses_filexor(fd, &g_filexor)) {
+            var->reimport.use_filexor = g_filexor.cmd;  // check in case TOC is encrypted and data isn't
+        }
+        if(myftell(fd) == offset) {
+            if(g_reimport_shrink_enlarge && (type == BMS_TYPE_ASIZE)) {
+                // ok, we need to reset the size
+            } else {
+                var->reimport.type = BMS_TYPE_NONE;  // no data has been read!
+            }
+        }
+        // no need to set the variable as "valid" for reimport2, type will be BMS_TYPE_NONE
+    }
+}
+
+
+
 int CMD_GetBits_func(int cmd) {
     FDBITS
     int     fd,
@@ -817,7 +840,7 @@ int CMD_GetBits_func(int cmd) {
     fd   = FILEZ(2);
     bits = VAR32(1);
 
-    if(g_verbose < 0) verbose_offset = myftell(fd);
+    /*if(g_verbose < 0)*/ verbose_offset = myftell(fd);
 
     my_fdbits(fd, &bitchr, &bitpos, &bitoff, 0, 0, 0);
     if(myftell(fd) != bitoff) {
@@ -844,6 +867,7 @@ int CMD_GetBits_func(int cmd) {
         if(g_debug_output) xdebug_print(verbose_offset, NULL     , CMD.var[0], NULL, 0, tmpn, -bits);
         add_var(CMD.var[0], NULL, NULL, tmpn, sizeof(int));
     }
+    add_var_reimport(&VARVAR(0), verbose_offset, fd, BMS_TYPE_BITS, bits);
     return 0;
 }
 
@@ -897,11 +921,12 @@ int CMD_Get_func(int cmd) {
     fd   = FILEZ(2);
     type = NUM(1);
 
-    if(g_verbose < 0)  verbose_offset = myftell(fd);
-    if(g_reimport < 0) verbose_offset = myftell(fd);    // necessary
+    //if(g_verbose < 0)  verbose_offset = myftell(fd);
+    //if(g_reimport < 0) verbose_offset = myftell(fd);    // necessary
+    verbose_offset = myftell(fd);   // mandatory
 
     if(CMD.var[3] >= 0) {
-        verbose_offset = myftell(fd);
+        //verbose_offset = myftell(fd);
         myfseek(fd, VAR32(3), SEEK_SET);
     }
 
@@ -913,49 +938,36 @@ int CMD_Get_func(int cmd) {
         if(g_verbose < 0) verbose_print(verbose_offset, "get", CMD.var[0], ret, -1, 0, type);
         if(g_debug_output) xdebug_print(verbose_offset, NULL , CMD.var[0], ret, -1, 0, type);
         add_var(CMD.var[0], NULL, ret, 0, -1);
+        add_var_reimport(&VARVAR(0), verbose_offset, fd, type, retn);
     } else {
         if(g_verbose < 0) verbose_print(verbose_offset, "get", CMD.var[0], NULL, 0, retn, type);
         if(g_debug_output) xdebug_print(verbose_offset, NULL , CMD.var[0], NULL, 0, retn, type);
         add_var(CMD.var[0], NULL, NULL, retn, sizeof(int));
+
+        // work-around for obtaining the raw float number
         if(type == BMS_TYPE_FLOAT) {
             float   tmp_float = 0;
-            myfseek(fd, -sizeof(u32), SEEK_CUR);
+            myfseek(fd, -(int)sizeof(u32), SEEK_CUR);
             myfr_endian(fd, tmp, sizeof(u32));
             memcpy(&tmp_float, tmp, MIN(sizeof(u32), sizeof(tmp_float)));
             VARVAR(0).float64 = tmp_float;
             VARVAR(0).isnum = -1;
         } else if(type == BMS_TYPE_DOUBLE) {
             double  tmp_double = 0;
-            myfseek(fd, -sizeof(u64), SEEK_CUR);
+            myfseek(fd, -(int)sizeof(u64), SEEK_CUR);
             myfr_endian(fd, tmp, sizeof(u64));
             memcpy(&tmp_double, tmp, MIN(sizeof(u64), sizeof(tmp_double)));
             VARVAR(0).float64 = tmp_double;
             VARVAR(0).isnum = -1;
         } else if(type == BMS_TYPE_LONGDOUBLE) {
             long double tmp_longdouble = 0;
-            myfseek(fd, -sizeof(tmp_longdouble), SEEK_CUR);
+            myfseek(fd, -(int)sizeof(tmp_longdouble), SEEK_CUR);
             myfr_endian(fd, tmp, sizeof(tmp_longdouble));
             memcpy(&tmp_longdouble, tmp, sizeof(tmp_longdouble));
             VARVAR(0).float64 = tmp_longdouble;
             VARVAR(0).isnum = -1;
         }
-        if(g_reimport < 0) {
-            memset(&VARVAR(0).reimport, 0, sizeof(variable_reimport_t));
-            VARVAR(0).reimport.offset   = verbose_offset;
-            VARVAR(0).reimport.fd       = fd;
-            VARVAR(0).reimport.type     = type;
-            if(fdnum_uses_filexor(fd, &g_filexor)) {
-                VARVAR(0).reimport.use_filexor = g_filexor.cmd;  // check in case TOC is encrypted and data isn't
-            }
-            if(myftell(fd) == verbose_offset) {
-                if(g_reimport_shrink_enlarge && (type == BMS_TYPE_ASIZE)) {
-                    // ok, we need to reset the size
-                } else {
-                    VARVAR(0).reimport.type = BMS_TYPE_NONE;  // no data has been read!
-                }
-            }
-            // no need to set the variable as "valid" for reimport2, type will be BMS_TYPE_NONE
-        }
+        add_var_reimport(&VARVAR(0), verbose_offset, fd, type, -1);
     }
 
     if(CMD.var[3] >= 0) {
@@ -1685,7 +1697,7 @@ int CMD_Math_func(int cmd) {
     if((op > 0) && (op < 32)) {
         ret = readbase(VAR(2), op, NULL);
     } else {
-        if(g_reimport < 0) {
+        if(g_reimport /*< 0 removed for compatibility with new imptype*/) {
             if(VARVAR(0).reimport.type != BMS_TYPE_NONE) {
                 int     rev_op = 0;
                 switch(op) {
@@ -1706,7 +1718,9 @@ int CMD_Math_func(int cmd) {
                     case '%': rev_op = '='; break;  // ???
                     case '=': rev_op = 0;
                         memcpy(&(VARVAR(2).reimport), &(VARVAR(0).reimport), sizeof(variable_reimport_t));
-                        VARVAR(0).reimport.type = BMS_TYPE_NONE;
+                        // the following has been disabled becaused it affects the new
+                        // imptype behavior: math VAR = FILES ; imptype variable VAR
+                        // VARVAR(0).reimport.type = BMS_TYPE_NONE;
                         break;
                     case 'n': rev_op = op;  break;
                     case 'v': rev_op = 'p'; break;
@@ -1834,9 +1848,9 @@ int calcc(int cmd, char *command, u64 input) {
                 break;
             } else if(*p <= ' ') {
                 continue;
-            } else if((*p == '[') || (*p == '{')) {
+            } else if(/*(*p == '[') || (conflict with subvar*/ (*p == '{')) {
                 *data++ = '(';
-            } else if((*p == ']') || (*p == '}')) {
+            } else if(/*(*p == ']') || (conflict with subvar*/ (*p == '}')) {
                 *data++ = ')';
             /*
             } else if((*p == '<') && (p[1] == '<')) {
@@ -2376,15 +2390,17 @@ int CMD_GetDString_func(int cmd) {
         size = VAR32(1);
     }
 
-    if(g_verbose < 0) verbose_offset = myftell(fd);
+    /*if(g_verbose < 0)*/ verbose_offset = myftell(fd);
 
     MAX_ALLOC_CHECK(size);
     myalloc(&buff, size + 1, &buffsz);
     myfr(fd, buff, size, TRUE);
     buff[size] = 0;
+
     if(g_verbose < 0) verbose_print(verbose_offset, "getdstr", CMD.var[0], buff, size, 0, size);
     if(g_debug_output) xdebug_print(verbose_offset, NULL     , CMD.var[0], buff, size, 0, 0);
     add_var(CMD.var[0], NULL, buff, 0, size);
+    add_var_reimport(&VARVAR(0), verbose_offset, fd, BMS_TYPE_STRING, size);
     return 0;
 }
 
@@ -2806,8 +2822,9 @@ u8 *do_print_cmd(u8 *msg, FILE *fdo) {
                 if(!var) var = "";
                 len = strlen(var);
 
+                // get_var_fullsz has been removed because doesn't work with set VAR string "" + putvarchr under 273 bytes
                 if(force_len > 0) {
-                    len = get_var_fullsz(idx);
+                    len = g_variable[idx].size; //get_var_fullsz(idx);
                     if(force_len < len) len = force_len;
                 }
                 if(hex > 0) {
@@ -2823,10 +2840,9 @@ u8 *do_print_cmd(u8 *msg, FILE *fdo) {
                     }
                 } else if(hex < 0) {
                     if(force_len < 0) {
-                        len = get_var_fullsz(idx);
+                        len = g_variable[idx].size; //get_var_fullsz(idx);
                         while((len > 0) && !var[len - 1]) len--;
                     }
-                    PRINT_FPUTC('\n')
                     PRINT_SHOW_DUMP(var, len)
                     var += len;
                 } else if(c_out) {
@@ -2902,7 +2918,7 @@ u8 *do_print_cmd(u8 *msg, FILE *fdo) {
                 msg++;
             }
         }
-        if(fdo) fputc('\n', fdo);
+        PRINT_FPUTC('\n');
     }
 
     if(did_color) {
@@ -2970,6 +2986,7 @@ int String_realloc(u8 **var1, int *len1, int len2) {
 
 
 int CMD_String_func(int cmd) {
+    static u8   *fmt    = NULL;
     static u8   *var1   = NULL;
     int     i,
             op,
@@ -2999,6 +3016,7 @@ int CMD_String_func(int cmd) {
     op   = NUM(1);
     var2 = VAR(2);
     len2f = VARSZF(2);
+    int var2_is_const = var_is_a_constant(CMD.var[2]);
 
     if(op < 0) {    // '0' for binary and error mode
         error_mode = 1;
@@ -3214,9 +3232,16 @@ int CMD_String_func(int cmd) {
                 break;
             }
             case 'B':
-                //len1 = strlen(var1);    // string
-                len2 = strlen(var2);    // string
             case 'b': {
+                if(op == 'B') {
+                    if(!error_mode) {
+                        //len1 = strlen(var1);    // string
+                        len2 = strlen(var2);    // string
+                    }
+                } else {
+                    //len1 = len1f;
+                    len2 = len2f;
+                }
                 String_realloc(&var1, &len1, len2 * 2);
                 len1 = byte2hex(var2, len2, var1, len1, 1);
                 if(len1 < 0) len1 = 0;
@@ -3229,19 +3254,33 @@ int CMD_String_func(int cmd) {
                 break;
             }
             case 'E':
-                len1 = strlen(var1);    // string
-                len2 = strlen(var2);    // string
             case 'e': {
+                if(op == 'E') {
+                    if(!error_mode) {
+                        len1 = strlen(var1);    // string
+                        len2 = strlen(var2);    // string
+                    }
+                } else {
+                    len1 = len1f;
+                    len2 = len2f;
+                }
                 String_realloc(&var1, &len1, len2);
                 memcpy(var1, var2, len1);
-                t = perform_encryption(var1, len1);
+                t = perform_encryption_and_crchash(var1, len1);
                 if(t >= 0) len1 = t;  // keep len1 intact if fails
                 break;
             }
             case 'C':
-                len1 = strlen(var1);    // string
-                len2 = strlen(var2);    // string
             case 'c': {
+                if(op == 'C') {
+                    if(!error_mode) {
+                        len1 = strlen(var1);    // string
+                        len2 = strlen(var2);    // string
+                    }
+                } else {
+                    len1 = len1f;
+                    len2 = len2f;
+                }
                 String_realloc(&var1, &len1, len2);
                 t = perform_compression(var2, len2, &var1, len1, &len1, 0);
                 if(t >= 0) len1 = t;  // keep len1 intact if fails
@@ -3270,8 +3309,15 @@ int CMD_String_func(int cmd) {
                 len1 = 0;
                 FREE(var1)    // oh yeah this sux, that's why I classify it as experimental work-around
                 if(!var2) var2 = "";
-                args = quick_check_printf_write(var2, args_format, sizeof(args_format));
-                if(args < 0) var2 = "";
+
+                malloc_copy((void **)&fmt, var2, len2);
+#ifdef QUICKBMS_STRING_CSTRING
+                // from quickbms 0.11.1, this is the correct way while it was a bug before
+                if(var2_is_const) cstring(fmt, fmt, -1, NULL, NULL);
+#endif
+
+                args = quick_check_printf_write(fmt, args_format, sizeof(args_format));
+                if(args < 0) malloc_copy((void **)&fmt, "", 1);
                 if(args > NUM(0)) {
                     fprintf(stderr, "\nError: String 'p' operator uses more arguments than available (%d/%d)\n", (i32)args, (i32)NUM(0));
                     myexit_cmd(cmd, QUICKBMS_ERROR_BMS);
@@ -3279,6 +3325,7 @@ int CMD_String_func(int cmd) {
 
                 /*
                 // the perfect solution but unfortunately C doesn't allow to pass values of different sizes :(
+                // (because all float arguments are passed as double which is 64bit against the 32bit of others)
                 #define STRING_PRINTF(N) \
                     ( \
                     strchr("npsS", args_format[N]) ? \
@@ -3301,34 +3348,34 @@ int CMD_String_func(int cmd) {
 
                 switch(NUM(0)) {
                     case 0: {
-                        len1 = spr(&var1, "%s", var2);
+                        len1 = spr(&var1, "%s", fmt);
                         break;
                     }
                     case 1: {
                         if(strchr("fFeEgGaA", args_format[0])) {
-                            len1 = spr(&var1, var2,
-                                printf_int_to_float(VAR32(3+0)));
+                            len1 = spr(&var1, fmt,
+                                VARFLOAT(3+0));
                         } else {
-                            len1 = spr(&var1, var2,
+                            len1 = spr(&var1, fmt,
                                 STRING_PRINTF(0));
                         }
                         break;
                     }
                     case 2: {
-                        len1 = spr(&var1, var2,
+                        len1 = spr(&var1, fmt,
                             STRING_PRINTF(0),
                             STRING_PRINTF(1));
                         break;
                     }
                     case 3: {
-                        len1 = spr(&var1, var2,
+                        len1 = spr(&var1, fmt,
                             STRING_PRINTF(0),
                             STRING_PRINTF(1),
                             STRING_PRINTF(2));
                         break;
                     }
                     case 4: {
-                        len1 = spr(&var1, var2,
+                        len1 = spr(&var1, fmt,
                             STRING_PRINTF(0),
                             STRING_PRINTF(1),
                             STRING_PRINTF(2),
@@ -3336,7 +3383,7 @@ int CMD_String_func(int cmd) {
                         break;
                     }
                     case 5: {
-                        len1 = spr(&var1, var2,
+                        len1 = spr(&var1, fmt,
                             STRING_PRINTF(0),
                             STRING_PRINTF(1),
                             STRING_PRINTF(2),
@@ -3345,7 +3392,7 @@ int CMD_String_func(int cmd) {
                         break;
                     }
                     case 6: {
-                        len1 = spr(&var1, var2,
+                        len1 = spr(&var1, fmt,
                             STRING_PRINTF(0),
                             STRING_PRINTF(1),
                             STRING_PRINTF(2),
@@ -3355,7 +3402,7 @@ int CMD_String_func(int cmd) {
                         break;
                     }
                     case 7: {
-                        len1 = spr(&var1, var2,
+                        len1 = spr(&var1, fmt,
                             STRING_PRINTF(0),
                             STRING_PRINTF(1),
                             STRING_PRINTF(2),
@@ -3366,7 +3413,7 @@ int CMD_String_func(int cmd) {
                         break;
                     }
                     case 8: {
-                        len1 = spr(&var1, var2,
+                        len1 = spr(&var1, fmt,
                             STRING_PRINTF(0),
                             STRING_PRINTF(1),
                             STRING_PRINTF(2),
@@ -3378,7 +3425,7 @@ int CMD_String_func(int cmd) {
                         break;
                     }
                     case 9: {
-                        len1 = spr(&var1, var2,
+                        len1 = spr(&var1, fmt,
                             STRING_PRINTF(0),
                             STRING_PRINTF(1),
                             STRING_PRINTF(2),
@@ -3391,7 +3438,7 @@ int CMD_String_func(int cmd) {
                         break;
                     }
                     case 10: {
-                        len1 = spr(&var1, var2,
+                        len1 = spr(&var1, fmt,
                             STRING_PRINTF(0),
                             STRING_PRINTF(1),
                             STRING_PRINTF(2),
@@ -3411,7 +3458,7 @@ int CMD_String_func(int cmd) {
                     // (tested and confirmed), any alternative?
                     /*
                     case 11: {
-                        len1 = spr(&var1, var2,
+                        len1 = spr(&var1, fmt,
                             STRING_PRINTF(0),
                             STRING_PRINTF(1),
                             STRING_PRINTF(2),
@@ -3426,7 +3473,7 @@ int CMD_String_func(int cmd) {
                         break;
                     }
                     case 12: {
-                        len1 = spr(&var1, var2,
+                        len1 = spr(&var1, fmt,
                             STRING_PRINTF(0),
                             STRING_PRINTF(1),
                             STRING_PRINTF(2),
@@ -3451,18 +3498,30 @@ int CMD_String_func(int cmd) {
                 break;
             }
             case 'P': {
-                p = do_print_cmd(var2, NULL);
+                malloc_copy((void **)&fmt, var2, len2);
+#ifdef QUICKBMS_STRING_CSTRING
+                // from quickbms 0.11.1, this is the correct way while it was a bug before
+                if(var2_is_const) cstring(fmt, fmt, -1, NULL, NULL);
+#endif
+
+                p = do_print_cmd(fmt, NULL);
                 mystrdup(&var1, p);
                 len1 = -1;
                 break;
             }
             case 's': { // *scanf-like, experimental and potentially dangerous
-                args = quick_check_printf_32bit_nums(var2); // only 32bit numbers are allowed at the moment!
-                if((args >= 0) && var1 && var2) {
+                malloc_copy((void **)&fmt, var2, len2);
+#ifdef QUICKBMS_STRING_CSTRING
+                // from quickbms 0.11.1, this is the correct way while it was a bug before
+                if(var2_is_const) cstring(fmt, fmt, -1, NULL, NULL);
+#endif
+
+                args = quick_check_printf_32bit_nums(fmt);  // only 32bit numbers are allowed at the moment!
+                if((args >= 0) && var1 && fmt) {
                     if(args > NUM(0)) args = NUM(0);
                     int tmp[MAX_ARGS + 1];
                     memset(&tmp, 0, sizeof(tmp));
-                    sscanf(var1, var2,  // do not check the return value
+                    sscanf(var1, fmt,  // do not check the return value
                         &tmp[0], &tmp[1], &tmp[2], &tmp[3],
                         &tmp[4], &tmp[5], &tmp[6], &tmp[7],
                         &tmp[8], &tmp[9], &tmp[10],&tmp[11]);
@@ -3669,13 +3728,6 @@ int CMD_String_func(int cmd) {
         if(len1 >= 0) var1[len1] = 0;
         add_var(CMD.var[0], NULL, var1, 0, len1);
     }
-    return 0;
-}
-
-
-
-int CMD_ImpType_func(int cmd) {
-    if(g_verbose > 0) printf("- ImpType command %d ignored (not supported)\n", (i32)cmd);
     return 0;
 }
 
@@ -4225,6 +4277,7 @@ int CMD_PutVarChr_func(int cmd) {
         }
     }
     newoff = offset + numsz;
+
     if((offset > varsz) || (newoff > varsz)) {  // this mode is experimental!
         if(newoff < offset) ALLOC_ERR;
         var = direct_var_alloc(cmd, newoff, var, varsz);
@@ -4290,6 +4343,126 @@ int CMD_Append_func(int cmd) {
 
 
 
+int dumpa_reimport_crc(int var);
+
+
+
+int CMD_ImpType_func(int cmd) {
+    int     i;
+    u8      *type;
+
+    if(g_reimport) {
+        type = STR(0);
+        if(!type || !type[0] || !strnicmp(type, "var", 3)) {
+
+            if(CMD.var[2] >= 0) {
+
+                // imptype var ORIGINAL_VAR NEW_VALUE
+                dumpa_reimport2(CMD.var[1], VAR32(2), NULL, -1);
+
+            } else {
+
+                // imptype var ORIGINAL_VAR
+                dumpa_reimport2(CMD.var[1], VAR32(1), NULL, -1);
+
+            }
+
+        } else if(!strnicmp(type, "off", 3) || !strnicmp(type, "pos", 3)) {
+
+            int offset = VAR32(1);
+            if(offset < 0) {
+
+                // imptype off -16 NEW_VALUE
+                dumpa_reimport2(-1, VAR32(2), NULL, myfilesize(0) + offset);
+
+            } else {
+
+                // imptype off 16 NEW_VALUE
+                dumpa_reimport2(-1, VAR32(2), NULL,                 offset);
+
+            }
+
+        } else if(!strnicmp(type, "crc", 3) || !strnicmp(type, "hash", 4) || !stricmp(type, "checksum")) {
+
+            // to be used AFTER *log
+            // imptype crc VAR
+
+            // to be used BEFORE *log
+            // imptype crc VAR crc 0 "0 0 0 39 0 1"
+            // imptype crc VAR md5 ""
+
+            g_reimport_crc = -1;    // disable by default
+
+            if(isempty_string(VAR(1))) {
+
+                // nothing to do, just for disabling g_reimport_crc
+
+            } else {
+
+                if(CMD.var[2] >= 0) {
+
+                    if(isempty_string(VAR(2))) {
+
+                        // already disabled, used to disable a previous "imptype crc VAR ALGO"
+                        // imptype crc VAR ""
+
+                    } else {
+
+                        // enable the reimport crc mode
+                        g_reimport_crc = CMD.var[1];
+
+                        // we need to shift the arguments to make them compatible with Encryption
+                        // let's remove the mode and the variable
+                        // backup
+                        command_t   command_bck;
+                        memcpy(&command_bck, &g_command[cmd], sizeof(command_t));
+                        CMD.type   = CMD_Encryption;
+                        // reset
+                        for(i = 0; i < MAX_ARGS;     i++) g_command[cmd].var[i] = QUICKBMS_RESET_VARNUM;
+                        for(i = 0; i < MAX_ARGS;     i++) g_command[cmd].num[i] = QUICKBMS_RESET_VARNUM;
+                        for(i = 0; i < MAX_ARGS;     i++) g_command[cmd].str[i] = NULL;
+                        // shift
+                        for(i = 0; i < (MAX_ARGS-2); i++) g_command[cmd].var[i] = command_bck.var[i+2];
+                        for(i = 0; i < (MAX_ARGS-2); i++) g_command[cmd].num[i] = command_bck.num[i+2];
+                        //for(i = 0; i < (MAX_ARGS-2); i++) g_command[cmd].str[i] = command_bck.str[i+2]; // no strings
+                        // key
+                        CSTRING(1, (command_bck.var[3] >= 0) ? get_var(command_bck.var[3]) : (u8*)"")
+                        // ivec
+                        CSTRING(2, (command_bck.var[4] >= 0) ? get_var(command_bck.var[4]) : (u8*)"")
+                        // Encryption
+                        int err = CMD_Encryption_func(cmd, -1);
+                        // restore and error handling
+                        FREE(CMD.str[1])
+                        FREE(CMD.str[2])
+                        memcpy(&g_command[cmd], &command_bck, sizeof(command_t));
+                        if(err < 0) return -1;
+
+                    }
+
+                } else {
+
+                    dumpa_reimport_crc(CMD.var[1]);
+
+                }
+
+            }
+
+        // unused from original MultiEx
+        } else if(!stricmp(type, "Standard")) {
+            // Standard: tells MultiEx that offsets of ResourceOffset and ResourceSize parameters are specified and will be Logged.
+        } else if(!stricmp(type, "StandardTail")) {
+            //StandardTail: tells MultiEx that the Resource info is not in a header, but in a tail, and therefore further upstream than all actual resource data, and tells MultiEx that offsets of ResourceOffset and ResourceSize parameters are specified and will be Logged.
+        } else if(!stricmp(type, "SFileSize")) {
+            //SFileSize : tells MultiEx that only offsets of ResourceSize parameters can be specified in the Log statement
+        } else if(!stricmp(type, "SFileOff")) {
+            //SFileOff : tells MultiEx that only offsets of ResourceOffset parameters can be specified in the Log statement 
+        }
+    }
+    return 0;
+}
+
+
+
 int CMD_Reimport_func(int cmd) {
     if(CMD.var[0] >= 0) {
         switch(VAR32(0)) {
@@ -4297,9 +4470,10 @@ int CMD_Reimport_func(int cmd) {
             case 1: g_reimport = 1;     g_reimport_shrink_enlarge = 0;  break;
             case 2: g_reimport = -1;    g_reimport_shrink_enlarge = 0;  break;
             case 3: g_reimport = -1;    g_reimport_shrink_enlarge = 1;  break;
-            default:
+            default: {
                 fprintf(stderr, "\nError: invalid reimport mode\n");
                 myexit_cmd(cmd, QUICKBMS_ERROR_BMS);
+            }
         }
     } else {
         g_reimport = !g_reimport;
@@ -4388,71 +4562,220 @@ int CMD_Padding_func(int cmd) {
 
 
 #ifndef DISABLE_SSL
-void *createRSA(unsigned char * key, int keysz, unsigned char *ivec, int ivecsz, int public) {
+void *_createRSA(unsigned char * key, int keysz, int cert_type) {
     void *rsa = NULL;
     BIO *keybio;
 
     // PEM_read_bio_##X returns NULL in case of errors so rsa remains NULL
     #define createRSA_BIO(X) \
         if(!rsa) { \
-            keybio = BIO_new_mem_buf(key, keysz); \
+            /*keybio = BIO_new_mem_buf(key, keysz); it works but may require a const for being 100% safe*/ \
+            keybio = BIO_new(BIO_s_mem()); \
             if(keybio) { \
+                BIO_write(keybio, key, keysz); \
                 rsa = PEM_read_bio_##X(keybio, NULL, NULL, NULL); \
                 if(rsa) if(g_verbose) printf("- RSA %s accepted\n", #X); \
                 BIO_free(keybio); \
             } \
         }
 
-    if(public) {
+    // cert_type can also be ignored, it wouldn't affect the performances
+    if(cert_type == 0) {
+
+        createRSA_BIO(RSAPrivateKey)
+        createRSA_BIO(DSAPrivateKey)
+        createRSA_BIO(ECPrivateKey)
+        createRSA_BIO(PrivateKey)
+
+    } else if(cert_type == 1) {
+
         createRSA_BIO(RSA_PUBKEY)
         createRSA_BIO(RSAPublicKey)
         createRSA_BIO(DSA_PUBKEY)
         createRSA_BIO(EC_PUBKEY)
         createRSA_BIO(PUBKEY)
+
     } else {
-        createRSA_BIO(RSAPrivateKey)
-        createRSA_BIO(DSAPrivateKey)
-        createRSA_BIO(ECPrivateKey)
-        createRSA_BIO(PrivateKey)
+
+        // useless?
+        createRSA_BIO(X509_AUX)
+        #if OPENSSL_VERSION_NUMBER < 0x10100000L
+        createRSA_BIO(X509_CERT_PAIR)
+        #endif
+        createRSA_BIO(X509_REQ)
+        createRSA_BIO(X509_CRL)
+        createRSA_BIO(NETSCAPE_CERT_SEQUENCE)
+        createRSA_BIO(PKCS8_PRIV_KEY_INFO)
+        createRSA_BIO(DSAparams)
+        createRSA_BIO(ECPKParameters)
+        createRSA_BIO(DHparams)
+        createRSA_BIO(SSL_SESSION)
+
     }
 
+    // any cert_type
     createRSA_BIO(X509)
     createRSA_BIO(PKCS7)
     createRSA_BIO(PKCS8)
 
-    // useless?
-    createRSA_BIO(X509_AUX)
-    #if OPENSSL_VERSION_NUMBER < 0x10100000L
-    createRSA_BIO(X509_CERT_PAIR)
-    #endif
-    createRSA_BIO(X509_REQ)
-    createRSA_BIO(X509_CRL)
-    createRSA_BIO(NETSCAPE_CERT_SEQUENCE)
-    createRSA_BIO(PKCS8_PRIV_KEY_INFO)
-    createRSA_BIO(DSAparams)
-    createRSA_BIO(ECPKParameters)
-    createRSA_BIO(DHparams)
-    createRSA_BIO(SSL_SESSION)
+    return rsa;
+}
 
-    #if OPENSSL_VERSION_NUMBER < 0x10100000L
-    if(!rsa) {
-        RSA *rsa_key = RSA_new();
-        rsa_key->n = BN_bin2bn(key,  keysz,  rsa_key->n);   // n
-        rsa_key->e = BN_bin2bn(ivec, ivecsz, rsa_key->e);   // e
-        /*
-        rsa_key->d = BN_bin2bn(d, sizeof(d)-1, rsa_key->d);
-        rsa_key->p = BN_bin2bn(p, sizeof(p)-1, rsa_key->p);
-        rsa_key->q = BN_bin2bn(q, sizeof(q)-1, rsa_key->q);
-        rsa_key->dmp1 = BN_bin2bn(dmp1, sizeof(dmp1)-1, rsa_key->dmp1);
-        rsa_key->dmq1 = BN_bin2bn(dmq1, sizeof(dmq1)-1, rsa_key->dmq1);
-        rsa_key->iqmp = BN_bin2bn(iqmp, sizeof(iqmp)-1, rsa_key->iqmp);
-        */
-        //rsa_key->flags |= RSA_FLAG_NO_CONSTTIME;
-        rsa = (void *)rsa_key;
+
+
+unsigned char *createRSA_cert_header(int cert_type, int end) {
+    static unsigned char    buff[64];
+    char    *type;
+
+    int t = 0;
+    t += sprintf(buff + t, "-----");
+    t += sprintf(buff + t, "%s ", !end ? "BEGIN" : "END");
+    switch(cert_type) {
+        case 0:  type = "PRIVATE KEY";  break;
+        case 1:  type = "PUBLIC KEY";   break;
+        default: type = "CERTIFICATE";  break;
     }
-    #endif
+    t += sprintf(buff + t, "%s", type);
+    t += sprintf(buff + t, "-----");
+    return buff;
+}
+
+
+
+void *createRSA(unsigned char * key, int keysz, int cert_type) {
+#define createRSA_max_line_length   64
+    static unsigned char    *tmp = NULL;    // better static
+    void    *rsa = NULL;
+    int     i,
+            t,
+            lf;
+
+    // openssl is unable to handle invalid keys, it crashes or doesn't work
+
+    // key is valid 
+    if(!strncmp(key, "-----", 5)) {
+
+        lf = 0;
+        for(i = 0; i < keysz; i++) {
+            if((key[i] == '\r') || (key[i] == '\n')) {
+                lf = 0;
+                continue;
+            }
+            if(++lf >= createRSA_max_line_length) break;
+        }
+
+        if(lf < createRSA_max_line_length) {
+
+            // all valid
+            if(!rsa) rsa = _createRSA(key, keysz, cert_type);
+
+        } else {
+
+            tmp = realloc(tmp, keysz + (keysz / createRSA_max_line_length) + 1);
+            if(!tmp) STD_ERR(QUICKBMS_ERROR_MEMORY);
+            // copy the first ----- line
+            for(t = 0, i = 0; i < keysz; i++) {
+                if((key[i] == '\r') || (key[i] == '\n')) break;
+                if(t < createRSA_max_line_length) {
+                    tmp[t++] = key[i];
+                }
+            }
+            if(t >= createRSA_max_line_length) {
+                t += sprintf(tmp + t, "%s\n", createRSA_cert_header(cert_type, 0));
+            } else {
+                tmp[t++] = '\n';
+            }
+
+            // now apply the 64 char truncation
+            lf = 0;
+            for(            ; i < keysz; i++) {
+                if((key[i] == '\r') || (key[i] == '\n')) continue;
+                if(!strncmp(key + i - 1, "\n-----", 6)) {
+                    tmp[t++] = '\n';
+                }
+                tmp[t++] = key[i];
+                if(++lf >= createRSA_max_line_length) { tmp[t++] = '\n'; lf = 0; }
+            }
+            tmp[t++] = '\n';
+            tmp[t] = 0;
+            if(!rsa) rsa = _createRSA(tmp, t, cert_type);
+        }
+
+    } else {
+
+        // it's a whole string, probably base64
+        if(strlen(key) == keysz) {
+            tmp = realloc(tmp, 64 + keysz + (keysz / createRSA_max_line_length) + 64 + 1);
+            if(!tmp) STD_ERR(QUICKBMS_ERROR_MEMORY);
+            t = 0;
+            t += sprintf(tmp + t, "%s\n", createRSA_cert_header(cert_type, 0));
+            lf = 0;
+            for(i = 0; i < keysz; i++) {
+                if((key[i] == '\r') || (key[i] == '\n')) continue;
+                tmp[t++] = key[i];
+                if(++lf >= createRSA_max_line_length) { tmp[t++] = '\n'; lf = 0; }
+            }
+            if(tmp[t - 1] != '\n') tmp[t++] = '\n';
+            t += sprintf(tmp + t, "%s\n", createRSA_cert_header(cert_type, 1));
+            if(!rsa) rsa = _createRSA(tmp, t, cert_type);
+        }
+
+        // or maybe not so force a base64
+        if(!rsa) {
+            t = ((keysz / 3) * 4) + 6;
+            t += (t / createRSA_max_line_length);
+            tmp = realloc(tmp, 64 + t + 64 + 1);
+            if(!tmp) STD_ERR(QUICKBMS_ERROR_MEMORY);
+            t = 0;
+            t += sprintf(tmp + t, "%s\n", createRSA_cert_header(cert_type, 0));
+            t += mybase64_encode(key, keysz, tmp + t, -1, createRSA_max_line_length);
+            tmp[t++] = '\n';
+            t += sprintf(tmp + t, "%s\n", createRSA_cert_header(cert_type, 1));
+            if(!rsa) rsa = _createRSA(tmp, t, cert_type);
+        }
+
+    }
+
+    // maybe there are empty chars before?
+    if(!rsa) {
+        i = 0;  // use 'i' for copy&paste the check below in the cycle
+        if((key[i] == ' ') || (key[i] == '\t') || (key[i] == '\r') || (key[i] == 'n')) {
+            for(i = 0; i < keysz; i++) {
+                if((key[i] == ' ') || (key[i] == '\t') || (key[i] == '\r') || (key[i] == 'n')) continue;
+            }
+            if(!rsa) rsa = _createRSA(key + i, keysz - i, cert_type);
+        }
+    }
+
+    // try as-is
+    if(!rsa) rsa = _createRSA(key, keysz, cert_type);
 
     return rsa;
+}
+
+
+
+// do NOT use it because already done by Encryption modpow
+void *createRSA_bin2bn(unsigned char * key, int keysz, unsigned char *ivec, int ivecsz) {
+    #if OPENSSL_VERSION_NUMBER < 0x10100000L
+    RSA *rsa = RSA_new();
+    if(rsa) {
+        rsa->n = BN_bin2bn(key,  keysz,  rsa->n);   // n
+        rsa->e = BN_bin2bn(ivec, ivecsz, rsa->e);   // e
+        /*
+        rsa->d = BN_bin2bn(d, sizeof(d)-1, rsa->d);
+        rsa->p = BN_bin2bn(p, sizeof(p)-1, rsa->p);
+        rsa->q = BN_bin2bn(q, sizeof(q)-1, rsa->q);
+        rsa->dmp1 = BN_bin2bn(dmp1, sizeof(dmp1)-1, rsa->dmp1);
+        rsa->dmq1 = BN_bin2bn(dmq1, sizeof(dmq1)-1, rsa->dmq1);
+        rsa->iqmp = BN_bin2bn(iqmp, sizeof(iqmp)-1, rsa->iqmp);
+        */
+        //rsa->flags |= RSA_FLAG_NO_CONSTTIME;
+    }
+    return rsa;
+    #else
+    return NULL;
+    #endif
 }
 
 
@@ -4758,16 +5081,18 @@ int openssl_get_algo(u8 *type, const EVP_CIPHER **mycrypto, const EVP_MD **myhas
 
 
 
-int CMD_Encryption_func(int cmd, int invert_mode) {
+int CMD_Encryption_func(int cmd, int invert_mode_and_crc) {
 #ifndef DISABLE_SSL
 #define IVEC_MYCRYPTO(X) \
     mycrypto = ivec ? EVP_##X##_cbc() : EVP_##X##_ecb()
     static int  last_cmd    = -1;   // for reimport mode;
-    if(invert_mode) {
-        cmd = last_cmd;
-        if(cmd < 0) return 0;  // no encryption previously used
+    if(invert_mode_and_crc >= 0) {
+        if(invert_mode_and_crc > 0) {
+            cmd = last_cmd;
+            if(cmd < 0) return 0;  // no encryption previously used
+        }
+        last_cmd = cmd;
     }
-    last_cmd = cmd;
 
     static int  load_algos      = 0;
     const EVP_CIPHER  *mycrypto = NULL;
@@ -4782,13 +5107,20 @@ int CMD_Encryption_func(int cmd, int invert_mode) {
     int     keysz,
             ivecsz,
             hmac    = 0,
-            var3_backup;
+            var3_backup;    // used by SSL and tomcrypt
     u8      *tmp_str = NULL,
             *type,
             *key,
             *ivec,
             *hash;
 
+    // Note: from quickbms 0.11.1 this argument is used for an experimental crc feature
+    if( // skip the following conditions
+        (invert_mode_and_crc < 0)   // called by ImpType
+     || (g_reimport_crc >= 0)       // called by bms_init/start_bms and dumpa in reimport mode after ImpType crc
+    ) {
+        // do nothing, leave everything set as-is (possible memory leak if the script is badly written)
+    } else {
     // reset ANY ctx
 #ifndef DISABLE_SSL
     FREEX(evp_ctx, EVP_CIPHER_CTX_cleanup(evp_ctx))
@@ -4887,8 +5219,10 @@ int CMD_Encryption_func(int cmd, int invert_mode) {
     FREE(spookyhash_ctx)
     murmurhash_ctx = 0;
     FREEX(xxhash_ctx, FREE(xxhash_ctx->key))
+    }   // end or reset
     if(cmd < 0) return 0;  // bms init
 
+    int bck_g_encrypt_mode = g_encrypt_mode;
     u8  *type_v = VAR(0);
     u8  *type_tmp = alloca(strlen(type_v)+1);   // on the stack, automatically freed
     if(type_tmp) {
@@ -4902,10 +5236,11 @@ int CMD_Encryption_func(int cmd, int invert_mode) {
     ivec   = STR(2);    // ivec can be NULL (ecb) or a string (CBC)
     ivecsz = NUM(2);
     if(ivecsz <= 0) ivec = NULL; // so can be used "" to skip it
+    g_crchash_mode = 0;
     g_encrypt_mode = 0;
     if(CMD.var[3] >= 0) g_encrypt_mode = VAR32(3);
     var3_backup = g_encrypt_mode;
-    if(invert_mode) g_encrypt_mode = !g_encrypt_mode;
+    if(invert_mode_and_crc > 0) g_encrypt_mode = !g_encrypt_mode;
 
     quick_var_from_name_check(&key,  &keysz);
     quick_var_from_name_check(&ivec, &ivecsz);
@@ -5390,9 +5725,10 @@ int CMD_Encryption_func(int cmd, int invert_mode) {
 #endif
         } else {
 #ifndef DISABLE_SSL
-            rsa_ctx->openssl_rsa_private = createRSA(key, keysz, ivec, ivecsz, 0);
-            rsa_ctx->openssl_rsa_public  = createRSA(key, keysz, ivec, ivecsz, 1);
-            if(!rsa_ctx->openssl_rsa_private && !rsa_ctx->openssl_rsa_public) {
+                                      rsa_ctx->openssl_rsa = createRSA(key, keysz, 0);  // private
+            if(!rsa_ctx->openssl_rsa) rsa_ctx->openssl_rsa = createRSA(key, keysz, 1);  // public
+            if(!rsa_ctx->openssl_rsa) rsa_ctx->openssl_rsa = createRSA(key, keysz, 2);  // certificate
+            if(!rsa_ctx->openssl_rsa) {
 #ifndef DISABLE_TOMCRYPT
                 if(!rsa_import(key, keysz, &rsa_ctx->tomcrypt_rsa)) rsa_ctx->is_tomcrypt = 1;
 #endif
@@ -5510,7 +5846,7 @@ int CMD_Encryption_func(int cmd, int invert_mode) {
         PKCS5_PBKDF2_HMAC(key, keysz, ivec, ivecsz, ((var3_backup != 0) && (var3_backup != 1)) ? var3_backup : 1000, myhash, sizeof(hash_key), hash_key);
         mycrypto = NULL;
         myhash   = NULL;
-        DO_QUICKBMS_HASH(hash_key, sizeof(hash_key));
+        QUICKBMS_CRC_HASH(hash_key, sizeof(hash_key), -1);
 
     } else if(!strnicmp(type, "Rfc2898DeriveBytes", 18)) {
         myhash   = EVP_sha1();
@@ -5519,7 +5855,7 @@ int CMD_Encryption_func(int cmd, int invert_mode) {
         PKCS5_PBKDF2_HMAC(key, keysz, ivec, ivecsz, ((var3_backup != 0) && (var3_backup != 1)) ? var3_backup : 1000, myhash, sizeof(hash_key), hash_key);
         mycrypto = NULL;
         myhash   = NULL;
-        hash = DO_QUICKBMS_HASH(hash_key, sizeof(hash_key));
+        hash = QUICKBMS_CRC_HASH(hash_key, sizeof(hash_key), -1);
 
         keysz  = 32;
         memcpy(key,  hash, keysz);
@@ -5545,7 +5881,7 @@ int CMD_Encryption_func(int cmd, int invert_mode) {
         EVP_BytesToKey(mycrypto, myhash, ivec, key, keysz, ((var3_backup != 0) && (var3_backup != 1)) ? var3_backup : 1000, hash_key, hash_key + sizeof(hash_key) / 2);
         mycrypto = NULL;
         myhash   = NULL;
-        DO_QUICKBMS_HASH(hash_key, sizeof(hash_key));
+        QUICKBMS_CRC_HASH(hash_key, sizeof(hash_key), -1);
 
 #ifndef DISABLE_TOMCRYPT
 #ifdef LTC_PKCS_5
@@ -5708,11 +6044,11 @@ int CMD_Encryption_func(int cmd, int invert_mode) {
     ) {
 #ifndef DISABLE_SSL
         if(hmac_ctx) {
-            if(ivec && (ivecsz > 0)) perform_encryption(ivec, ivecsz);
+            if(ivec && (ivecsz > 0)) perform_encryption_and_crchash(ivec, ivecsz);
         } else
 #endif
         {
-            if(key  && (keysz > 0))  perform_encryption(key, keysz);
+            if(key  && (keysz > 0))  perform_encryption_and_crchash(key, keysz);
         }
     }
 
@@ -5727,7 +6063,18 @@ int CMD_Encryption_func(int cmd, int invert_mode) {
             show_dump(4, ivec, ivecsz, stdout);
         }
     }
+
+    if(invert_mode_and_crc < 0) {
+        g_crchash_mode = g_encrypt_mode;    // ???
+        g_encrypt_mode = bck_g_encrypt_mode;
+    }
     return 0;
+}
+
+
+
+int CMD_CRCHash_func(int cmd) {
+    return CMD_Encryption_func(cmd, -1);
 }
 
 
@@ -6406,7 +6753,7 @@ typedef struct {
     quickrva_t  *quickrva;
 } calldll_t;
 
-int CMD_CallDLL_func(int cmd, u8 *input, int input_size, u8 *output, int output_size) {
+int CMD_CallDLL_func(int cmd, u8 *input, int input_size, u8 *output, int output_size, int *calldll_ret) {
     static  calldll_t   dll[MAX_DLLS] = {{NULL,NULL,0,0,0,0,0,0,0,{{NULL,0,NULL}}}};  // cache for multiple dlls/funcs
 
     //static u8   fulldlldir[PATHSZ + 1]; // used only here so don't waste the stack
@@ -6438,6 +6785,8 @@ int CMD_CallDLL_func(int cmd, u8 *input, int input_size, u8 *output, int output_
             is_lua      = 0;
 
     PyObject *pFunc, *pArgs, *pValue, *pTmp;
+
+    if(calldll_ret) *calldll_ret = 0;
 
     if(cmd < 0) {   // needed only for those dlls that require reinitialization
         for(di = 0; di < MAX_DLLS; di++) {
@@ -6792,17 +7141,21 @@ int CMD_CallDLL_func(int cmd, u8 *input, int input_size, u8 *output, int output_
         for(i = 0; i < argc; i++) { // as above
             n = CMD.var[4 + i];
             if(n < 0) continue; // MEMORY_FILE (this check is not necessary)
-            if(!stricmp(get_varname(n), "#INPUT#"))  {
-                args[i] = input;
+            // is_var_ptr is a new feature meant for a project of replacing file operations
+            // with memory alternatives, no idea if it may be useful as-is now
+            int     is_var_ptr = CMD.num[4 + i];
+                   if(!stricmp(get_varname(n), "#INPUT#"))  {
+                args[i] = is_var_ptr ?  (void *)&input       : input;
             } else if(!stricmp(get_varname(n), "#INPUT_SIZE#")) {
-                args[i] = (void *)input_size;
+                args[i] = is_var_ptr ?  (void *)&input_size  : (void *)input_size;
             } else if(!stricmp(get_varname(n), "#OUTPUT#")) {
-                args[i] = output;
+                args[i] = is_var_ptr ?  (void *)&output      : output;
             } else if(!stricmp(get_varname(n), "#OUTPUT_SIZE#")) {
-                args[i] = (void *)output_size;
+                args[i] = is_var_ptr ?  (void *)&output_size : (void *)output_size;
             }
         }
     }
+    QUICKBMS_mem_init(input, input_size, output, output_size); // useful for some work-in-progress features
 
 #define CALLDLL_DO_INT3 \
         set_int3((const void *)dllname, (const void *)hlib, (const void *)funcname, (const void *)funcaddr, (const void *)(i32)argc);
@@ -7078,6 +7431,7 @@ int CMD_CallDLL_func(int cmd, u8 *input, int input_size, u8 *output, int output_
     }
 
     //CLOSEDLL; // never call it!
+    if(calldll_ret) *calldll_ret = ret;
     return 0;
 }
 
@@ -7327,6 +7681,6 @@ i32 __stdcall quickbms_encryption(char *algo, void *key, i32 keysz, void *ivec, 
     CMD.type    = CMD_NONE;
 
     if(CMD_Encryption_func(0, 0) < 0) return -1;
-    return perform_encryption(data, size);
+    return perform_encryption_and_crchash(data, size);
 }
 

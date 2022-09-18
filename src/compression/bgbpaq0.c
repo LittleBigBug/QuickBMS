@@ -55,7 +55,7 @@ static unsigned int whuff_rval;		//window decode value
 
 //bit io
 
-int HUFF_InputByte()
+static int HUFF_InputByte()
 {
 	return(*huff_winbuf++);
 }
@@ -63,7 +63,7 @@ int HUFF_InputByte()
 
 //arithmetic coder core
 
-int WHUFF_InputModelBit(unsigned char *model, int ctx)
+static int WHUFF_InputModelBit(unsigned char *model, int ctx)
 {
 	unsigned int r, v, i, w;
 
@@ -117,7 +117,7 @@ int WHUFF_InputModelBit(unsigned char *model, int ctx)
 	return(i);
 }
 
-void WHUFF_SetupDecode(byte *in)
+static void WHUFF_SetupDecode(byte *in)
 {
 	int i;
 
@@ -136,7 +136,7 @@ void WHUFF_SetupDecode(byte *in)
 
 //arithmatic coder model/init
 
-int WArith2_DecodeSymbol()
+static int WArith2_DecodeSymbol()
 {
 	int i, j;
 
@@ -150,7 +150,7 @@ int WArith2_DecodeSymbol()
 	return(warith2_ctx&((1<<WARITH2_BITS)-1));
 }
 
-void WArith2_SetupDecode(byte *in)
+static void WArith2_SetupDecode(byte *in)
 {
 	int i, j, k;
 

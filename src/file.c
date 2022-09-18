@@ -1,5 +1,5 @@
 /*
-    Copyright 2009-2021 Luigi Auriemma
+    Copyright 2009-2022 Luigi Auriemma
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -282,6 +282,24 @@ int parsing_debug_sort(parsing_debug_t *a, parsing_debug_t *b) {
 
 
 
+u8 *myitoa_decimal_names(u_int num) {
+    static char ret[NUMBERSZ];  // used only once in a printf
+    sprintf(ret,       g_decimal_names    ? "%"PRIu : "%"PRIx, num);
+    return ret;
+}
+
+
+
+u8 *myitoa_decimal_notation(u_int num) {
+    static int  flip = 0;       // in case we use it twice in a printf
+    static char ret[2][NUMBERSZ];
+    flip = (flip + 1) & 1;
+    sprintf(ret[flip], g_decimal_notation ? "%"PRIu : "%"PRIx, num);
+    return ret[flip];
+}
+
+
+
 int fcoverage(int fdnum) {
     memory_file_t   *memfile;
     filenumber_t    *filez  = NULL;
@@ -312,11 +330,11 @@ int fcoverage(int fdnum) {
             perc_fix = '!';
         }
         fprintf(stderr,
-            "  coverage file %-3d %3d%%%c  %-10"PRIu" %-10"PRIu" . offset %"PRIx"\n",
+            "  coverage file %-3d %3d%%%c  %-10s %-10s . offset %"PRIx"\n",
             (i32)fdnum,
             (i32)perc, perc_fix,
-            coverage,
-            fsize,
+            myitoa_decimal_notation(coverage),
+            myitoa_decimal_notation(fsize),
             offset);
 
         if(g_parsing_debug && fdnum_is_valid && filez && filez->fd) {   // filez already assigned
@@ -354,7 +372,7 @@ int fcoverage(int fdnum) {
                         real_free(parsing_debug);
                     }
                     fprintf(stderr, "              > %s parsed entropy %g\n", fname, entropy / (double)chunks);
-                    fprintf(stderr, "                %-10"PRIu" bytes dumped from %d chunks\n", (int)ftell(fd)/*cast from 64bit*/, chunks);
+                    fprintf(stderr, "                %-10s bytes dumped from %d chunks\n", myitoa_decimal_notation((int)ftell(fd)/*cast from 64bit*/), chunks);
                     file_display(1, fsize, 0, 0, 0.0);
                     FCLOSE(fd);
                     fseek(filez->fd, offset, SEEK_SET); // restore
@@ -811,7 +829,7 @@ void post_fread_actions(int fdnum, u8 *data, int size) {
         }
     }
     if(fdnum_uses_filexor(fdnum, &g_filecrypt)) {
-        perform_encryption(data, size);
+        perform_encryption_and_crchash(data, size);
     }
     if(g_mex_default) bytesread_eof(fdnum, size);
 }
@@ -907,7 +925,7 @@ int myfr(int fdnum, u8 *data, int size, int quit_if_diff) {
         if(fdnum_is_valid && g_filenumber[fdnum].fullname) fullname = g_filenumber[fdnum].fullname;
         fprintf(stderr, "\n"
             "Error: incomplete input file %d: %s\n"
-            "       Can't read %"PRIu" bytes from offset %"PRIx".\n"
+            "       Can't read %s bytes from offset %"PRIx".\n"
             "       Anyway don't worry, it's possible that the BMS script has been written\n"
             "       to exit in this way if it's reached the end of the archive so check it\n"
             "       or contact its author or verify that all the files have been extracted.\n"
@@ -915,7 +933,7 @@ int myfr(int fdnum, u8 *data, int size, int quit_if_diff) {
             "\n",
             (i32)fdnum,
             fullname,
-            size - len,
+            myitoa_decimal_notation(size - len),
             myftell(fdnum));
 
         fcoverage(fdnum);
@@ -1072,9 +1090,9 @@ int myfw(int fdnum, u8 *data, int size) {
     }
     if(len != size) {
         fprintf(stderr, "\n"
-            "Error: problems with input file number %d, can't write %"PRIu" bytes.\n"
+            "Error: problems with input file number %d, can't write %s bytes.\n"
             "%s"
-            "\n", (i32)fdnum, size - len,
+            "\n", (i32)fdnum, myitoa_decimal_notation(size - len),
             g_write_mode ? "" : "\n       you MUST use the -w option for enabling the file writing mode\n");
         if(g_continue_anyway) return -1;
         myexit(QUICKBMS_ERROR_FILE_WRITE);
@@ -1751,7 +1769,7 @@ static void dumpa_state(int *quickbms_compression, int *quickbms_encryption, int
     //}
     //if(quickbms_encryption) {
         *quickbms_encryption = 0;
-        if(!perform_encryption(NULL, -1)) *quickbms_encryption = 1;
+        if(!perform_encryption_and_crchash(NULL, -1)) *quickbms_encryption = 1;
     //}
 }
 
@@ -1854,7 +1872,7 @@ void dumpa_skip_reimported_files(void) {
 
 variable_reimport_t *dumpa_reimport2_valid(int idx) {
     variable_reimport_t *ret;
-    if(idx < 0) return NULL;
+    if(idx < 0) return NULL;    // do NOT raise errors, a negative idx is used by imptype
     ret = &g_variable[idx].reimport;
     if(ret->type == BMS_TYPE_NONE) return NULL;
     return ret;
@@ -1863,12 +1881,42 @@ variable_reimport_t *dumpa_reimport2_valid(int idx) {
 
 
 #define dumpa_reimport2_sequential  ((g_reimport2_offset >= 0) && (g_variable[g_reimport2_offset].reimport.type == BMS_TYPE_NONE))
-int dumpa_reimport2(int idx, int value) {
+int dumpa_reimport2(int idx, int value, u8 *value_str, u_int force_offset) {
     variable_reimport_t *reimport;
     u_int   oldoff;
 
     reimport = dumpa_reimport2_valid(idx);
-    if(!reimport) return -1;
+    if(!reimport) {
+        if(force_offset == (u_int)-1LL) {
+            return -1;
+        }
+
+        for(idx = 0; idx < MAX_VARS; idx++) {
+            reimport = dumpa_reimport2_valid(idx);
+
+            // unfortunately the only way is checking every single variable
+            // because there is MAX_VARS is the only limit available
+            if(!reimport) continue;
+            //if(!reimport) break;
+
+            if(reimport->offset == force_offset) {
+                break;
+            }
+        }
+        if(idx >= MAX_VARS) {
+            idx = -1;   // add a new variable
+        }
+
+        variable_reimport_t tmp_reimport;
+        if(reimport) {
+            memcpy(&tmp_reimport, reimport, sizeof(tmp_reimport));
+        } else {
+            memset(&tmp_reimport, 0, sizeof(tmp_reimport));
+            tmp_reimport.type   = BMS_TYPE_LONG;    // default value
+            tmp_reimport.offset = force_offset;
+        }
+        reimport = &tmp_reimport;
+    }
 
     if(reimport->math_ops > 0) {
         int     new_value = value;
@@ -1888,7 +1936,14 @@ int dumpa_reimport2(int idx, int value) {
         int g_filexor_cmd_bck = g_filexor.cmd;
         if(reimport->use_filexor != g_filexor.cmd) CMD_FileXOR_func(reimport->use_filexor); // set
         myfseek(reimport->fd, reimport->offset, SEEK_SET);
-        myfwx(reimport->fd, idx, reimport->type);
+        if(value_str) {
+            int     len = value;    // value is the length of value_str if the latter is set (save one argument)
+            if(len < 0) len = reimport->size;
+            if(len < 0) len = strlen(value_str);
+            myfw(reimport->fd, value_str, len);
+        } else {
+            myfwx(reimport->fd, idx, reimport->type);
+        }
         if(g_filexor_cmd_bck     != g_filexor.cmd) CMD_FileXOR_func(g_filexor_cmd_bck);     // reset
         myfseek(reimport->fd, oldoff, SEEK_SET);
     }
@@ -1898,6 +1953,22 @@ int dumpa_reimport2(int idx, int value) {
     }
 
     //reimport->type = BMS_TYPE_NONE;  // better to set it to invalid? maybe it gets reused in a second Log
+    return 0;
+}
+
+
+
+int dumpa_reimport_crc(int var) {
+    if(var < 0) return -1;
+    int idx = get_var_from_name("QUICKBMS_CRC", -1);
+    if(idx >= 0) {
+        dumpa_reimport2(var, get_var32(idx), NULL, -1);
+    } else {
+        idx = get_var_from_name("QUICKBMS_HASH", -1);
+        if(idx >= 0) {
+            dumpa_reimport2(var, -1 /*get_var_fullsz(idx)*/, get_var(idx), -1);
+        }
+    }
     return 0;
 }
 
@@ -1940,7 +2011,7 @@ int g_ignore_comp_errors_reimport(int endif_cmd, int size) {
                         } else {
                             var1n = size;
                         }
-                        dumpa_reimport2(var2x, var1n);
+                        dumpa_reimport2(var2x, var1n, NULL, -1);
 
                     } else if(var_is_a_constant(var2x)) {
                         if(is_else) {
@@ -1948,15 +2019,15 @@ int g_ignore_comp_errors_reimport(int endif_cmd, int size) {
                         } else {
                             var2n = size;
                         }
-                        dumpa_reimport2(var1x, var2n);
+                        dumpa_reimport2(var1x, var2n, NULL, -1);
 
                     } else {
                         //if(is_else) { // same???
                         if((var1x != g_reimport2_zsize) && (var1x != g_reimport2_size) && (var1x != g_reimport2_xsize)) {
-                            dumpa_reimport2(var1x, size);
+                            dumpa_reimport2(var1x, size, NULL, -1);
                         }
                         if((var2x != g_reimport2_zsize) && (var2x != g_reimport2_size) && (var2x != g_reimport2_xsize)) {
-                            dumpa_reimport2(var2x, size);
+                            dumpa_reimport2(var2x, size, NULL, -1);
                         }
                     }
                 }
@@ -2105,7 +2176,7 @@ this specific situation.
     if(g_reimport < 0) { \
         if((len > size) && (offset != (u_int)-1LL)) { \
             tmpoff = myfilesize(fdnum); \
-            dumpa_reimport2(g_reimport2_offset, tmpoff); \
+            dumpa_reimport2(g_reimport2_offset, tmpoff, NULL, -1); \
             myfseek(fdnum, tmpoff, SEEK_SET); \
             size = len; \
         } \
@@ -2347,7 +2418,7 @@ this specific situation.
             g_encrypt_mode = !g_encrypt_mode;
             if(t < 0) goto quit;
             if(g_reimport < 0) {
-                dumpa_reimport2(g_reimport2_size, len);
+                dumpa_reimport2(g_reimport2_size, len, NULL, -1);
             }
         }
 
@@ -2639,6 +2710,28 @@ int dumpa_reimport_compression(int type) {
 
 
 
+int dumpa_reimport_crchash   (u8 *data, int datalen) {
+    int     ret;
+    g_encrypt_mode = !g_encrypt_mode;   // this job is already done by CMD_Encryption_func
+    CMD_Encryption_func(-1, 1);
+    ret = perform_crchash   (data, datalen);
+    g_encrypt_mode = !g_encrypt_mode;
+    return ret;
+}
+
+
+
+int dumpa_reimport_encryption(u8 *data, int datalen) {
+    int     ret;
+    g_encrypt_mode = !g_encrypt_mode;   // this job is already done by CMD_Encryption_func
+    CMD_Encryption_func(-1, 1);
+    ret = perform_encryption(data, datalen);
+    g_encrypt_mode = !g_encrypt_mode;
+    return ret;
+}
+
+
+
 static extracted_file_t *append_mode_extracted_file2(u8 *FNAME, FILE *fd, int zsize, int size) {
     extracted_file_t *ef    = NULL;
     if(g_script_uses_append || (g_extracted_file_tree_view_mode >= 0)) {
@@ -2750,7 +2843,8 @@ int dumpa(int fdnum, u8 *fname, u8 *varname, u_int offset, int size, int zsize, 
             is_folder       = 0,
             wildcard_pos    = -1,
             idx             = -1,
-            t;
+            t,
+            memory_workaround=0;
     u8      tmpbuff[64]     = "",
             ans[16],
             *ext            = NULL,
@@ -2791,19 +2885,19 @@ int dumpa(int fdnum, u8 *fname, u8 *varname, u_int offset, int size, int zsize, 
 
     if(!fname || !fname[0]) {
         if(g_input_total_files <= 1) {    // extension added by sign_ext
-            spr(&tmp_fname, g_decimal_names ? "%"PRIu".dat" : "%"PRIx".dat", g_extracted_files);
+            spr(&tmp_fname, "%s.dat", myitoa_decimal_names(g_extracted_files));
         } else {
             // the following works but would be good to have something generic rather than based on TEMPORARY_FILE
             xname = g_filenumber[0].basename;
             //if(!stricmp(xname, TEMPORARY_FILE) && g_filenumber[0].prev_basename) xname = g_filenumber[0].prev_basename; // old references are saved
-            spr(&tmp_fname, g_decimal_names ? "%s%c%"PRIu".dat" : "%s%c%"PRIx".dat", xname, PATHSLASH, g_extracted_files);
+            spr(&tmp_fname, "%s%c%s.dat", xname, PATHSLASH, myitoa_decimal_names(g_extracted_files));
         }
         fname = tmp_fname;
         nametmp = 1;
     } else if(wildcard_pos >= 0) {
         fname[wildcard_pos] = 0;
         if((wildcard_pos > 0) && strchr(PATH_DELIMITERS, fname[wildcard_pos - 1])) {
-            spr(&tmp_fname, g_decimal_names ? "%s%"PRIu".dat" : "%s%"PRIx".dat", fname, g_extracted_files);
+            spr(&tmp_fname, "%s%s.dat", fname, myitoa_decimal_names(g_extracted_files));
         } else {
             spr(&tmp_fname, "%s.dat", fname);
         }
@@ -2822,7 +2916,7 @@ int dumpa(int fdnum, u8 *fname, u8 *varname, u_int offset, int size, int zsize, 
         if(!size && !zsize) {
             is_folder = 1;
         } else {
-            spr(&tmp_fname, g_decimal_names ? "%s%"PRIu".dat" : "%s%"PRIx".dat", fname, g_extracted_files);
+            spr(&tmp_fname, "%s%s.dat", fname, myitoa_decimal_names(g_extracted_files));
             fname = tmp_fname;
             nametmp = 1;
         }
@@ -2843,13 +2937,13 @@ int dumpa(int fdnum, u8 *fname, u8 *varname, u_int offset, int size, int zsize, 
 
     } else if(is_MEMORY_FILE(varname) && !stricmp(varname, fname)) {
         memfile = &g_memory_file[-get_memory_file(fname)];    // yes, remember that it must be negative of negative
-        if(g_verbose > 0) printf("- create a memory file from offset %"PRIx" of %"PRIu" bytes\n", offset, size);
+        if(g_verbose > 0) printf("- create a memory file from offset %"PRIx" of %s bytes\n", offset, myitoa_decimal_notation(size));
         memfile->coverage = 0;  // reset it
 
     } else if(!stricmp(varname, TEMPORARY_FILE) && !stricmp(varname, fname)) {
         g_temporary_file_used = 1;    // global for final unlink
         filetmp = 1;
-        if(g_verbose > 0) printf("- create a temporary file from offset %"PRIx" of %"PRIu" bytes\n", offset, size);
+        if(g_verbose > 0) printf("- create a temporary file from offset %"PRIx" of %s bytes\n", offset, myitoa_decimal_notation(size));
 
     } else {
         pathslash_fix(fname, 1);    // necessary for quick_simple_tmpname_scanner. I'm not aware of any compatibility problem with older versions at the moment
@@ -2859,10 +2953,10 @@ int dumpa(int fdnum, u8 *fname, u8 *varname, u_int offset, int size, int zsize, 
             if(check_wildcards(fname, g_filter_files) < 0) goto quit;
         }
         if(!g_reimport) {
-            if(!g_quiet) printf("%c %"PRIx" %-10"PRIu" %s\n", append_mode_chr_vis, offset, size, fname);
+            if(!g_quiet) printf("%c %"PRIx" %-10s %s\n", append_mode_chr_vis, offset, myitoa_decimal_notation(size), fname);
         }
         if(g_listfd) {
-              fprintf(g_listfd, "%c %"PRIx" %-10"PRIu" %s\n", append_mode_chr_vis, offset, size, fname);
+              fprintf(g_listfd, "%c %"PRIx" %-10s %s\n", append_mode_chr_vis, offset, myitoa_decimal_notation(size), fname);
             fflush(g_listfd);
         }
     }
@@ -2924,7 +3018,7 @@ int dumpa(int fdnum, u8 *fname, u8 *varname, u_int offset, int size, int zsize, 
             g_reimport = !g_reimport;
             g_extraction_hash = 1;
         }
-        #define dumpa_show_reimport_info(X) printf("%c %"PRIx" %-10"PRIu" %s\n", X, offset, size, fname)
+        #define dumpa_show_reimport_info(X) printf("%c %"PRIx" %-10s %s\n", X, offset, myitoa_decimal_notation(size), fname)
         if(nametmp) {
             quick_simple_tmpname_scanner(fname, PATHSZ);
             if(check_wildcards(fname, g_filter_files) < 0) goto quit;
@@ -3017,6 +3111,10 @@ redo_import:
                 fseek(fd, t, SEEK_SET);
             }
 
+            // recap: it's not perfect because encryption and crchash were together before
+            // extraction: decryption + crchash     + decompression
+            // reimport:   crchash    + compression + encryption
+
             zsize = size;
             myalloc(&out, size,  &outsize); // will be allocated by perform_compression
             if(quickbms_compression) {
@@ -3036,12 +3134,17 @@ redo_import:
                     dumpa_sha1(0, in, zsize, extraction_hash2);
                     if(!memcmp(extraction_hash, extraction_hash2, SHA1_DIGEST_SIZE)) goto skip_import;
                 }
+
+                zsize = dumpa_reimport_crchash(in, zsize);  // imptype crc
+
                 old_compression_type = g_compression_type;
                 g_compression_type = dumpa_reimport_compression(g_compression_type);
                 if(g_compression_type < 0) {
                     fprintf(stderr, "\n"
                         "Error: unsupported compression %d in reimport mode\n"
-                        "       you can try the -e option for disabling compression (experimental)\n", (i32)old_compression_type);
+                        "       you can try the -e option with reimport2 for disabling compression\n"
+                        "       (experimental, it changes the field that triggered the CLog command)\n",
+                        (i32)old_compression_type);
                     if(g_continue_anyway) { ret_value = -1; goto quit; }
                     myexit(QUICKBMS_ERROR_COMPRESSION);
                 }
@@ -3056,12 +3159,15 @@ redo_import:
                     myexit(QUICKBMS_ERROR_COMPRESSION);
                 }
             } else {
+
                 old_zsize = old_size;   // avoid boring "if" during the check of the size
                 size = fread(out, 1, size, fd);
                 if(g_extraction_hash) {
                     dumpa_sha1(0, out, size, extraction_hash2);
                     if(!memcmp(extraction_hash, extraction_hash2, SHA1_DIGEST_SIZE)) goto skip_import;
                 }
+
+                size = dumpa_reimport_crchash(out, size);   // imptype crc
             }
 
             if(g_script_uses_append) {
@@ -3078,10 +3184,7 @@ redo_import:
                 memset(out + size, 0, old_zsize - size);
                 size = old_zsize;
             }
-            g_encrypt_mode = !g_encrypt_mode;   // this job is already done by CMD_Encryption_func
-            CMD_Encryption_func(-1, 1);
-            size = perform_encryption(out, size);
-            g_encrypt_mode = !g_encrypt_mode;
+            size = dumpa_reimport_encryption(out, size);
             if(size == -1) {
                 fprintf(stderr, "\nError: the encryption failed during reimport\n");
                 if(g_continue_anyway) { ret_value = -1; goto quit; }
@@ -3146,7 +3249,7 @@ redo_import:
                     }
 
                     // if the file fits the available space we don't need to rewrite the offset field!
-                    dumpa_reimport2(g_reimport2_offset, offset);
+                    dumpa_reimport2(g_reimport2_offset, offset, NULL, -1);
 
                     old_zsize = size;   // bypass next check
                 }
@@ -3211,10 +3314,10 @@ redo_import:
 
             if(g_reimport < 0) {
                 // yeah, zsize and size are now inverted
-                dumpa_reimport2(g_reimport2_zsize, size);
-                dumpa_reimport2(g_reimport2_size,  zsize);
+                dumpa_reimport2(g_reimport2_zsize, size,  NULL, -1);
+                dumpa_reimport2(g_reimport2_size,  zsize, NULL, -1);
 
-                dumpa_reimport2(g_reimport2_xsize, zsize);  // ???
+                dumpa_reimport2(g_reimport2_xsize, zsize, NULL, -1);    // ???
 
                 if(g_ignore_comp_errors) {
                     g_ignore_comp_errors_reimport(-1, size);
@@ -3307,18 +3410,38 @@ skip_import:
         } else {
             //MAX_ALLOC_CHECK(size);
             //myalloc(&out, (xsize > size) ? xsize : size, &outsize); // + 1 is NOT necessary, do not use dumpa_xsize
-            myalloc(&out, size,  &outsize);     // this solution avoids problems with xsize zero and size negative
+            myalloc_ret(&out, size,  &outsize);     // this solution avoids problems with xsize zero and size negative
+            if(!out) {
+                FREE(in)
+                insize  = 0;
+                myalloc(&out, size,  &outsize);
+            }
             if(xsize > size) {
-                myalloc(&out, xsize, &outsize);
+                myalloc_ret(&out, xsize, &outsize);
+                if(!out) {
+                    FREE(in)
+                    insize  = 0;
+                    myalloc(&out, xsize, &outsize);
+                }
             }
             if(quickbms_compression && (g_compression_type != COMP_COPY)) { // remember that the (size == zsize) check is NOT valid so can't be used in a "generic" way!
                 //MAX_ALLOC_CHECK(xsize);
                 //MAX_ALLOC_CHECK(zsize);
                 len = dumpa_xsize(zsize, xsize);
-                myalloc(&in, len, &insize);   // + 1 is NOT necessary
+                myalloc_ret(&in, len, &insize);   // + 1 is NOT necessary
+                if(!in) {
+                    if(len > outsize) {
+                        FREE(out)
+                        outsize = 0;
+                        myalloc(&out, len, &outsize);
+                    }
+                    memory_workaround = 1;
+                    fprintf(stderr, "Alert: memory alloc work-around, data may be corrupted and a crash may occur\n");
+                    in = (out + outsize) - len;
+                }
                 len = myfr(fdnum, in, len, TRUE);
                 if(len < 0) { ret_value = -1; goto quit; }
-                len = perform_encryption(in, len);
+                len = perform_encryption_and_crchash(in, len);
                 if(len == -1) {
                     fprintf(stderr, "\nError: the encryption failed\n");
                     if(g_continue_anyway) { ret_value = -1; goto quit; }
@@ -3355,7 +3478,7 @@ skip_import:
                     if(t > len) memset(out + len, 0, t - len);
                     len = t;
                 }
-                len = perform_encryption(out, len);
+                len = perform_encryption_and_crchash(out, len);
                 if(len == -1) {
                     fprintf(stderr, "\nError: the encryption failed\n");
                     if(g_continue_anyway) { ret_value = -1; goto quit; }
@@ -3413,10 +3536,54 @@ skip_import:
                     setmode(fileno(fd), O_BINARY);
                     #endif
                 } else {
-                    fd = xfopen(g_force_output, "ab");  // better than "wb" ?
-                    if(!fd) STD_ERR(QUICKBMS_ERROR_FILE_WRITE);
+                    // "ab" is perfect but we can't get the current offset of the file
+                    // which may be necessary for some experimental formats that may
+                    // be added in the future... for example TAR needs it for alignment
+                    fd = xfopen(g_force_output, "r+b");
+                    if(fd) {
+                        fseek(fd, 0, SEEK_END);
+                    } else {
+                        if(!fd) fd = xfopen(g_force_output, "wb");  // if it doens't exist
+                        if(!fd) fd = xfopen(g_force_output, "ab");  // fail-safe
+                        if(!fd) STD_ERR(QUICKBMS_ERROR_FILE_WRITE);
+                    }
+
+                    //fd = xfopen(g_force_output, "ab");  // better than "wb" ?
+                    //if(!fd) STD_ERR(QUICKBMS_ERROR_FILE_WRITE);
                 }
                 //fname = g_force_output;
+
+                // alternative output formats (experimental)
+                if(g_append_mode == APPEND_MODE_NONE) {
+                    if(!stricmp(get_extension(g_force_output), "tar")) {
+                        //if(strlen(fname) > 100) ... boring, unsupported
+
+                        // padding of previous files
+                        // it should be put after the file but this is just a test using simple code
+                        // in one location without header/footer sections (may be added in the future)
+                        while((u64)ftell(fd) % (u64)512) fputc(0, fd);
+
+                        static u8 tar_buff[512];
+                        memset(tar_buff, 0, sizeof(tar_buff));
+                        strncpy(tar_buff +   0, fname, 100);            // name[100]
+                        sprintf(tar_buff + 100, "%o", 0755);            // mode[8]
+                        sprintf(tar_buff + 108, "%o", 0);               // uid[8]
+                        sprintf(tar_buff + 116, "%o", 0);               // gid[8]
+                        sprintf(tar_buff + 124, "%o", (i32)size);       // size[12]
+                        sprintf(tar_buff + 136, "%o", (i32)time(NULL)); // mtime[12]
+                        sprintf(tar_buff + 148, "%8s", "");             // chksum[8]
+                        sprintf(tar_buff + 156, "%c", '0');             // typeflag;
+                        sprintf(tar_buff + 257, "ustar ");              // magic[6]
+                        // ignore all the other fields, set them to zero with padding/memset
+
+                        u16 tar_chksum = 0;
+                        for(t = 0; t < sizeof(tar_buff); t++) tar_chksum += tar_buff[t];
+                        sprintf(tar_buff + 148, "%o", tar_chksum);      // chksum[8]
+
+                        if(fwrite(tar_buff, 1, sizeof(tar_buff), fd) != sizeof(tar_buff)) STD_ERR(QUICKBMS_ERROR_FILE_WRITE);
+                    }
+                }
+
             } else {
                 if(nametmp) {
                     // used for log "" in append mode
@@ -3555,6 +3722,10 @@ quit:
     // the following is used only for -f #NUM, it's the list of parsed files
     if(!memfile) {
         if(g_append_mode == APPEND_MODE_NONE) g_extracted_files2++;
+    }
+    if(memory_workaround) {
+        in      = NULL;
+        insize  = 0;
     }
     return(ret_value);
 }

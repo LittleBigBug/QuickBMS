@@ -1,5 +1,5 @@
 /*
-    Copyright 2009-2021 Luigi Auriemma
+    Copyright 2009-2022 Luigi Auriemma
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -1060,6 +1060,14 @@ int strdup_replace(u8 **dstp, u8 *src, int src_len, int *dstp_len) {  // should 
 
 
 
+int myisprint(int c) {
+    if(c <= 0x1f) return 0;
+    if(c >= 0x7f) return 0;
+    return 1;
+}
+
+
+
 int myisdechex_string(u8 *str) {
     QUICKBMS_int    len;
 
@@ -1069,8 +1077,7 @@ int myisdechex_string(u8 *str) {
     // sort of isprint, necessary to avoid that invalid strings are handled as numbers because readbase ignores these bytes
     int     i;
     for(i = 0; str[i]; i++) {
-        if(str[i] <= 0x1f) return 0;
-        if(str[i] >= 0x7f) return 0;
+        if(!myisprint(str[i])) return 0;
     }
 
     readbase(str, 10, &len);    // no need to know the number
@@ -1078,6 +1085,17 @@ int myisdechex_string(u8 *str) {
     if(len != strlen(str)) return 0;    // otherwise there are huge problems with GetArray and If
                                         // the downside is the lost of compatibility with rare things like 123;!
     return 1;                  // TRUE
+}
+
+
+
+int isempty_string(u8 *str) {
+    if(!str) return 1;
+    while(*str) {
+        if(myisprint(*str)) return 0;
+        str++;
+    }
+    return 1;
 }
 
 
@@ -1591,6 +1609,10 @@ files_t *add_files(u8 *fname, u64 fsize, int *ret_files) {
 
     if(!fname) return NULL;
 
+    if(fname[0] == '.') {   // remove the initial .\ ./
+        if((fname[1] == '/') || (fname[1] == '\\')) fname += 2;
+    }
+
     if(check_wildcards(fname, g_filter_in_files) < 0) return NULL;
 
     if(filesi >= filesn) {
@@ -1938,6 +1960,35 @@ int datafile_init(datafile_t *df, u8 *data, int size) {
     return 0;
 }
 
+int incremental_fread_BOM(FILE *fd, datafile_t *df) {
+    int     utf16   = 0;
+    if(fd && (fd == stdin)) return utf16;
+    if(
+        (fd && !ftell(fd))
+     || (df && (df->p == df->datafile))
+    ) {
+        u8  t1,t2,t3;
+        if(fd) t1 = fgetc(fd);
+        else   t1 = *(df->p)++;
+        if(fd) t2 = fgetc(fd);
+        else   t2 = *(df->p)++;
+        if((t1 == 0xef) && (t2 == 0xbb)) {          // UTF-8 BOM
+            if(fd) t3 = fgetc(fd);
+            else   t3 = *(df->p)++;
+            if(t3 == 0xbf) utf16 = 0;
+            else           utf16 = 0;   // ignore the third value and do not reset
+        } else if((t1 == 0xff) && (t2 == 0xfe)) {   // UTF-16 BOM LE
+            utf16 = -1;
+        } else if((t1 == 0xfe) && (t2 == 0xff)) {   // UTF-16 BOM BE
+            utf16 = 1;
+        } else {        // reset
+            if(fd) fseek(fd, 0, SEEK_SET);
+            else   df->p = df->datafile;
+        }
+    }
+    return utf16;
+}
+
 int incremental_fread_getc(FILE *fd, datafile_t *df, u8 *data, int utf16) {
     int     t   = 0;
 
@@ -1970,7 +2021,7 @@ int incremental_fread_getc(FILE *fd, datafile_t *df, u8 *data, int utf16) {
 }
 
 // remember that the output is allocated and not static, free it when you no longer need it
-// eol: 0=just_fread, 1=line, -1
+// eol: 0=just_fread, 1=line, -1=line+utf
 u8 *incremental_fread(FILE *fd, int *ret_size, int eol, datafile_t *df, int use_static, int utf16) {
     static const int    STDINSZ = 4096;
     static int  _buffsz = 0;
@@ -1990,59 +2041,18 @@ u8 *incremental_fread(FILE *fd, int *ret_size, int eol, datafile_t *df, int use_
     if(ret_size) *ret_size = 0;
 
     if(eol < 0) {
-        int scan, ok;
-        for(--eol; eol < 0; eol++) {
-            for(scan = 0; scan < 3; scan++) {
-                for(ok = 1; ok;) {
-                    if(fd) {
-                        if(!ftell(fd)) {
-                            fread(bom, 1, 3, fd);
-                            if(!memcmp(bom, "\xef\xbb\xbf", 3)) {       // UTF-8 BOM
-                                fseek(fd, 3, SEEK_SET);
-                                utf16 = 0;
-                            } else if(!memcmp(bom, "\xff\xfe", 2)) {    // UTF-16 BOM LE
-                                fseek(fd, 2, SEEK_SET);
-                                utf16 = -1;
-                            } else if(!memcmp(bom, "\xfe\xff", 2)) {    // UTF-16 BOM BE
-                                fseek(fd, 2, SEEK_SET);
-                                utf16 = 1;
-                            } else {
-                                fseek(fd, 0, SEEK_SET);
-                                utf16 = 0;
-                            }
-                        }
-                        if(fseek(fd, utf16 ? -2 : -1, SEEK_CUR) < 0) ok = 0;
-                    } else if(df) {
-                        if(df->p <= df->datafile) ok = 0;
-                        if(df->p > df->datafile) df->p -= (utf16 ? 2 : 1);
-                    }
-
-                    t = 0;
-                    if(fd) {
-                        t = incremental_fread_getc(fd, df, NULL, utf16);
-                        fseek(fd, utf16 ? -2 : -1, SEEK_CUR);
-                    } else if(df->p < df->limit) {
-                        t = incremental_fread_getc(fd, df, NULL, utf16);
-                    }
-
-                    t = (t == '\r') || (t == '\n'); // is a line feed
-                           if(scan == 0) {
-                        if(t) break;
-                    } else if(scan == 1) {
-                        if(!t) break;
-                    } else if(scan == 2) {
-                        if(t) break;
-                    }
-                }
-            }
-            if(ok) {
-                        if(fd) {
-                            fgetc(fd); // '\n'?
-                            if(utf16) fgetc(fd);    // LE or BE doesn't matter
-                        } else if(df && (df->p < df->limit)) {
-                            df->p += (utf16 ? 2 : 1);
-                        }
-            }
+        // this is not a real method, it's not used anywhere and may be removed in the future
+        // currently it checks the utf16 from the beginning of the file everytime it's invoked (slow)
+        // (the previous code was a sort of "go backward N lines" that didn't work)
+        if((fd && (fd != stdin)) || df) {
+            u_int   offset;
+            if(fd)  offset = ftell(fd);
+            else    offset = df->p - df->datafile;
+            if(fd)  fseek(fd, 0, SEEK_SET);
+            else    df->p = df->datafile;
+            utf16 = incremental_fread_BOM(fd, df);
+            if(fd)  fseek(fd, offset, SEEK_SET);
+            else    df->p = df->datafile + offset;
         }
         eol = 1;
     }
@@ -2623,7 +2633,7 @@ quit:
 
 // alternative to sscanf so it's possible to use also commas and hex numbers
 // do NOT reset the parameters because they could have default values different than 0!
-#define MARCRO_get_parameter_numbers(TYPE) \
+#define MACRO_get_parameter_numbers(TYPE) \
     va_list ap; \
     TYPE    i, \
             *par; \
@@ -2643,12 +2653,12 @@ quit:
     va_end(ap); \
     return i;
 
-int get_parameter_numbers_int(u8 *s, ...) {
-    MARCRO_get_parameter_numbers(int)
+i32 get_parameter_numbers_int(u8 *s, ...) {
+    MACRO_get_parameter_numbers(int)
 }
 
-int get_parameter_numbers_i32(u8 *s, ...) {   // the compression code has int->32, quickbms_4gb_files has int->64 in all the other places
-    MARCRO_get_parameter_numbers(i32)
+i32 get_parameter_numbers_i32(u8 *s, ...) {   // the compression code has int->32, quickbms_4gb_files has int->64 in all the other places
+    MACRO_get_parameter_numbers(i32)
 }
 
 
@@ -2917,6 +2927,10 @@ int check_overwrite(u8 *fname, int check_if_present_only) {
 
 
 
+static int myalloc_return_NULL_on_error    = 0;
+
+
+
 u8 *myalloc(u8 **data, QUICKBMS_int wantsize, QUICKBMS_int *currsize) {
     QUICKBMS_int    ows;    // original wantsize
     u8      *old_data;      // allocate it at any cost
@@ -2939,22 +2953,8 @@ u8 *myalloc(u8 **data, QUICKBMS_int wantsize, QUICKBMS_int *currsize) {
             fprintf(stderr, "\nError: the rounded amount of bytes to allocate is negative or too big (0x%"PRIx")\n", wantsize);
             myexit(QUICKBMS_ERROR_MEMORY);
         }
-        if(currsize && (ows <= *currsize)) {
-            if(!*data) {
-                // we need to allocate something, even if wantsize is zero, so continue
-            } else {
-                // too expensive: memset((*data) + ows, 0, *currsize - ows);
-                if(*currsize > 0) goto quit; //return(*data);
-            }
-        }
-        *data = realloc(*data, wantsize);
-        if(!*data) STD_ERR(QUICKBMS_ERROR_MEMORY);
-        if(currsize) *currsize = ows;
-        memset((*data) + ows, 0, wantsize - ows);
-        //goto quit; //return(*data);
-        // end of quick secure way
 
-    } else {
+    } else {    // -9 option
 
         wantsize = (wantsize + 4095) & (~4095);     // not bad as fault-safe and fast alloc solution: padding (4096 is usually the default size of a memory page)
         if((wantsize < 0) || (wantsize < ows)) {    // due to integer rounding
@@ -2962,26 +2962,59 @@ u8 *myalloc(u8 **data, QUICKBMS_int wantsize, QUICKBMS_int *currsize) {
             myexit(QUICKBMS_ERROR_MEMORY);
             //wantsize = ows;   // remember memset MYALLOC_ZEROES
         }
-
-        if(currsize && (wantsize <= *currsize)) {
+        if(currsize && (wantsize <= *currsize)) {   // wantsize is rounded
             if(*currsize > 0) goto quit;
         }
+    }
 
-        old_data = *data;
-        *data = realloc(*data, wantsize);
+    if(currsize && (ows <= *currsize)) {
         if(!*data) {
-            FREE(old_data);
-            *data = calloc(wantsize, 1);
-            if(!*data) {
-                fprintf(stderr, "- try allocating %"PRIu" bytes\n", wantsize);
-                STD_ERR(QUICKBMS_ERROR_MEMORY);
-            }
+            // we need to allocate something, even if wantsize is zero, so continue
+        } else {
+            // too expensive: memset((*data) + ows, 0, *currsize - ows);
+            if(*currsize > 0) goto quit; //return(*data);
         }
-        if(currsize) *currsize = wantsize - MYALLOC_ZEROES;      // obviously
+    }
+
+    old_data = *data;
+    int _xdbg_return_NULL_on_error = xdbg_return_NULL_on_error;
+    xdbg_return_NULL_on_error = 1;
+    *data = realloc(*data, wantsize);
+    xdbg_return_NULL_on_error = _xdbg_return_NULL_on_error;
+    if(!*data) {    // STD_ERR(QUICKBMS_ERROR_MEMORY);
+        // this method works only if the caller uses myalloc as malloc()
+        // it will corrupt the data if it's used as realloc with existent data to be keep in the buffer
+        FREE(old_data); // because realloc requires more memory: old+new
+        xdbg_return_NULL_on_error = myalloc_return_NULL_on_error;
+        *data = calloc(wantsize, 1);
+        xdbg_return_NULL_on_error = _xdbg_return_NULL_on_error;
+        if(!*data) {
+            if(myalloc_return_NULL_on_error) {
+                *data     = NULL;
+                *currsize = 0;
+                return *data;
+            }
+            fprintf(stderr, "- try allocating %"PRIu" bytes\n", wantsize);
+            STD_ERR(QUICKBMS_ERROR_MEMORY);
+        }
+    }
+
+    if(currsize) *currsize = ows;
+    if(*data) {
+        memset((*data) + ows, 0, wantsize - ows); // ows is the original wantsize, useful in some cases like XMemDecompress
     }
 quit:
-    memset((*data) + ows, 0, MYALLOC_ZEROES);   // ows is the original wantsize, useful in some cases like XMemDecompress
     return(*data);
+}
+
+
+
+u8 *myalloc_ret(u8 **data, QUICKBMS_int wantsize, QUICKBMS_int *currsize) {
+    u8  *ret;
+    myalloc_return_NULL_on_error = 1;
+    ret = myalloc(data, wantsize, currsize);
+    myalloc_return_NULL_on_error = 0;
+    return ret;
 }
 
 
@@ -3477,6 +3510,46 @@ u8 *quickbms_path_open(u8 *fname) {
 
 
 
+u8 *get_extension(u8 *fname) {
+    u8      *p;
+
+    if(fname) {
+        p = strrchr(fname, '.');
+        if(p) return(p + 1);
+        return(fname + strlen(fname));
+    }
+    return(fname);
+}
+
+
+
+u8 *get_filename(u8 *fname) {
+    u8      *p;
+
+    if(fname) {
+        p = mystrrchrs(fname, PATH_DELIMITERS);
+        if(p) return(p + 1);
+    }
+    return(fname);
+}
+
+
+
+u8 *get_basename(u8 *fname) {
+    u8      *p,
+            *l;
+
+    p = get_filename(fname);
+    if(p) {
+        l = strrchr(p, '.');
+        if(l) *l = 0;
+        return p;
+    }
+    return(fname);
+}
+
+
+
 u8 *get_fullpath_from_name(u8 *fname, int folder_only) {
     static u8   tmp[PATHSZ + 1];
     static u8   *out = NULL;
@@ -3521,16 +3594,26 @@ u8 **build_filter(u8 ***ret_filter, u8 *filter) {
     int     i,
             len,
             ret_n;
-    u8      *tmp_filter,
+    u8      *tmp_filter = NULL,
             *p,
             *l,
             **ret       = NULL;
 
     if(!filter || !filter[0]) return NULL;
 
-    fprintf(stderr, "- filter string: \"%s\"\n", filter);
-    tmp_filter = fdload(filter, &len);
-    if(!tmp_filter) tmp_filter = mystrdup_simple(filter);
+    if(!stricmp(get_extension(filter), "txt") && !strchr(filter, '{') && !strchr(filter, '*') && !strchr(filter, ',') && !strchr(filter, ';')) {
+        FILE *fd = xfopen(filter, "rb");
+        if(fd) {
+            fprintf(stderr, "- filter file: \"%s\"\n", filter);
+            int utf16 = incremental_fread_BOM(fd, NULL);
+            tmp_filter = incremental_fread(fd, &len, 0, NULL, 0, utf16);
+            FCLOSE(fd);
+        }
+    }
+    if(!tmp_filter) {
+        fprintf(stderr, "- filter string: \"%s\"\n", filter);
+        tmp_filter = mystrdup_simple(filter);
+    }
 
     if(ret_filter) ret = *ret_filter;
     ret_n = 0;
@@ -3539,6 +3622,7 @@ u8 **build_filter(u8 ***ret_filter, u8 *filter) {
     }
     for(p = tmp_filter; p && *p; p = l) {
         for(     ; *p &&  strchr(" \t\r\n", *p); p++);
+        if(!*p) break;
 
         for(l = p; *l && !strchr(",;|\r\n", *l); l++);
         if(!*l) l = NULL;
@@ -3568,9 +3652,10 @@ u8 **build_filter(u8 ***ret_filter, u8 *filter) {
         ret = realloc(ret, (ret_n + 1) * sizeof(u8 *));
         if(!ret) STD_ERR(QUICKBMS_ERROR_MEMORY);
         ret[ret_n] = NULL;
-    }
-    for(i = 0; ret[i]; i++) {
-        fprintf(stderr, "- filter %3d: %s\n", (i32)(i + 1), ret[i]);
+
+        for(i = 0; ret[i]; i++) {
+            fprintf(stderr, "- filter %3d: %s\n", (i32)(i + 1), ret[i]);
+        }
     }
     FREE(tmp_filter)
     if(ret_filter) *ret_filter = ret;
@@ -3602,46 +3687,6 @@ void *malloc_copy(void **output, void *input, int size) {
     else      memset(ret, 0x00,  size);
     ((u8 *)ret)[size] = 0;
     return ret;
-}
-
-
-
-u8 *get_extension(u8 *fname) {
-    u8      *p;
-
-    if(fname) {
-        p = strrchr(fname, '.');
-        if(p) return(p + 1);
-        return(fname + strlen(fname));
-    }
-    return(fname);
-}
-
-
-
-u8 *get_filename(u8 *fname) {
-    u8      *p;
-
-    if(fname) {
-        p = mystrrchrs(fname, PATH_DELIMITERS);
-        if(p) return(p + 1);
-    }
-    return(fname);
-}
-
-
-
-u8 *get_basename(u8 *fname) {
-    u8      *p,
-            *l;
-
-    p = get_filename(fname);
-    if(p) {
-        l = strrchr(p, '.');
-        if(l) *l = 0;
-        return p;
-    }
-    return(fname);
 }
 
 
@@ -3941,7 +3986,7 @@ void get_temp_path(u8 *output, int outputsz) {
 
 
 int need_quote_delimiters(u8 *p) {
-    if(!p || !p[0]) return 1;            // ""
+    if(!p || !p[0]) return 1;   // ""
     if(p[0] == '\"') return 0;  // already quoted
     if(mystrchrs(p,
         "^&|<>() \t,;=\xff%"
@@ -4008,324 +4053,14 @@ TCCState *tcc_compiler(u8 *input) {
     }
     tcc_add_file(tccstate, tmp_fname);
     */
-    tcc_set_options(tccstate, "-nostdlib");
+    tcc_set_options(tccstate, "-nostdlib -DFILE=void");
     if(tcc_compile_string(tccstate, input) < 0) myexit(QUICKBMS_ERROR_BMS);
     return tccstate;
 }
 
 
 
-long long __divdi3(long long u, long long v);
-long long __moddi3(long long u, long long v);
-unsigned long long __udivdi3(unsigned long long u, unsigned long long v);
-unsigned long long __umoddi3(unsigned long long u, unsigned long long v);
-long long __ashrdi3(long long a, int b);
-unsigned long long __lshrdi3(unsigned long long a, int b);
-long long __ashldi3(long long a, int b);
-float __floatundisf(unsigned long long a);
-double __floatundidf(unsigned long long a);
-long double __floatundixf(unsigned long long a);
-unsigned long long __fixunssfdi (float a1);
-long long __fixsfdi (float a1);
-unsigned long long __fixunsdfdi (double a1);
-long long __fixdfdi (double a1);
-unsigned long long __fixunsxfdi (long double a1);
-long long __fixxfdi (long double a1);
-
-
-
-int TCC_libtcc_symbols(TCCState *tccstate) {
-    #define tcc_symbols_add(X)  tcc_add_symbol(tccstate, #X, X)
-
-    //stdio.h
-    tcc_symbols_add(fopen);
-    tcc_symbols_add(freopen);
-    tcc_symbols_add(fflush);
-    tcc_symbols_add(fclose);
-    //tcc_symbols_add(remove);
-    //tcc_symbols_add(rename);
-    //tcc_symbols_add(tmpfile);
-    //tcc_symbols_add(tempnam);
-    //tcc_symbols_add(rmtmp);
-    //tcc_symbols_add(unlink);
-    tcc_symbols_add(fprintf);
-    tcc_symbols_add(printf);
-    tcc_symbols_add(sprintf);
-    tcc_symbols_add(vfprintf);
-    tcc_symbols_add(vprintf);
-    tcc_symbols_add(vsprintf);
-    tcc_symbols_add(fscanf);
-    tcc_symbols_add(scanf);
-    tcc_symbols_add(sscanf);
-    tcc_symbols_add(fgetc);
-    tcc_symbols_add(fgets);
-    tcc_symbols_add(fputc);
-    tcc_symbols_add(fputs);
-    //tcc_symbols_add(gets);
-    tcc_symbols_add(puts);
-    tcc_symbols_add(ungetc);
-    tcc_symbols_add(getc);
-    tcc_symbols_add(putc);
-    tcc_symbols_add(getchar);
-    tcc_symbols_add(putchar);
-    tcc_symbols_add(fread);
-    tcc_symbols_add(fwrite);
-    tcc_symbols_add(fseek);
-    tcc_symbols_add(ftell);
-    tcc_symbols_add(rewind);
-    tcc_symbols_add(fgetpos);
-    tcc_symbols_add(fsetpos);
-    tcc_symbols_add(feof);
-    tcc_symbols_add(ferror);
-
-    //stdlib.h
-    tcc_symbols_add(atoi);
-    tcc_symbols_add(atof);
-    tcc_add_symbol(tccstate, "malloc",  real_malloc);   //tcc_symbols_add(malloc);
-    tcc_add_symbol(tccstate, "calloc",  real_calloc);   //tcc_symbols_add(calloc);
-    tcc_add_symbol(tccstate, "realloc", real_realloc);  //tcc_symbols_add(realloc);
-    tcc_add_symbol(tccstate, "free",    real_free);     //tcc_symbols_add(free);
-    //tcc_symbols_add(alloca);
-    //tcc_symbols_add(itoa);
-    tcc_symbols_add(exit);
-    tcc_symbols_add(bsearch);
-    tcc_symbols_add(qsort);
-    tcc_symbols_add(div);
-    tcc_symbols_add(abs);
-
-    //string.h
-    tcc_symbols_add(memchr);
-    tcc_symbols_add(memcmp);
-    tcc_symbols_add(memcpy);
-    tcc_symbols_add(memmove);
-    tcc_symbols_add(memset);
-    tcc_symbols_add(strcat);
-    tcc_symbols_add(strchr);
-    tcc_symbols_add(strcmp);
-    tcc_symbols_add(strcoll);
-    tcc_symbols_add(strcpy);
-    tcc_symbols_add(strcspn);
-    tcc_symbols_add(strerror);
-    tcc_symbols_add(strlen);
-    tcc_symbols_add(strncat);
-    tcc_symbols_add(strncmp);
-    tcc_symbols_add(strncpy);
-    tcc_symbols_add(strpbrk);
-    tcc_symbols_add(strrchr);
-    tcc_symbols_add(strspn);
-    tcc_symbols_add(strstr);
-    tcc_symbols_add(stristr);
-    tcc_symbols_add(strtok);
-    tcc_symbols_add(strxfrm);
-    tcc_symbols_add(memccpy);
-    tcc_symbols_add(memicmp);
-    tcc_add_symbol(tccstate, "strdup",  real_strdup);   //tcc_symbols_add(strdup);
-    //tcc_symbols_add(strcmpi);
-    tcc_symbols_add(stricmp);
-    //tcc_symbols_add(stricoll);    // not available on newer gcc
-    //tcc_symbols_add(strlwr);
-    tcc_symbols_add(strnicmp);
-    //tcc_symbols_add(strnset);
-    //tcc_symbols_add(strrev);
-    //tcc_symbols_add(strset);
-    //tcc_symbols_add(strupr);
-
-    //math.h
-    tcc_symbols_add(sin);
-    tcc_symbols_add(cos);
-    tcc_symbols_add(tan);
-    tcc_symbols_add(sinh);
-    tcc_symbols_add(cosh);
-    tcc_symbols_add(tanh);
-    tcc_symbols_add(asin);
-    tcc_symbols_add(acos);
-    tcc_symbols_add(atan);
-    tcc_symbols_add(atan2);
-    tcc_symbols_add(exp);
-    tcc_symbols_add(log);
-    tcc_symbols_add(log10);
-    tcc_symbols_add(pow);
-    tcc_symbols_add(sqrt);
-    tcc_symbols_add(ceil);
-    tcc_symbols_add(floor);
-    tcc_symbols_add(fabs);
-    tcc_symbols_add(ldexp);
-    tcc_symbols_add(frexp);
-    tcc_symbols_add(modf);
-    tcc_symbols_add(fmod);
-
-    //ctype.h
-    tcc_symbols_add(isalnum);
-    tcc_symbols_add(isalpha);
-    tcc_symbols_add(iscntrl);
-    tcc_symbols_add(isdigit);
-    tcc_symbols_add(isgraph);
-    tcc_symbols_add(islower);
-    //tcc_symbols_add(isleadbyte);
-    tcc_symbols_add(isprint);
-    tcc_symbols_add(ispunct);
-    tcc_symbols_add(isspace);
-    tcc_symbols_add(isupper);
-    tcc_symbols_add(isxdigit);
-    tcc_symbols_add(tolower);
-    tcc_symbols_add(toupper);
-
-    //time.h
-    tcc_symbols_add(time);
-    tcc_symbols_add(difftime);
-    tcc_symbols_add(mktime);
-    tcc_symbols_add(asctime);
-    tcc_symbols_add(ctime);
-    tcc_symbols_add(gmtime);
-    tcc_symbols_add(localtime);
-
-#ifdef WIN32
-    //windows.h/winbase.h
-    tcc_symbols_add(LoadLibraryA);
-    tcc_symbols_add(LoadLibraryExA);
-    tcc_symbols_add(GetProcAddress);
-    tcc_symbols_add(FreeLibrary);
-    tcc_symbols_add(FindResourceA);
-    tcc_symbols_add(GetModuleHandleA);
-    //tcc_symbols_add(GetModuleHandleExA);  // not available on Win98
-#endif
-
-    //quickbms
-    tcc_symbols_add(strristr);
-    tcc_symbols_add(swap16);
-    tcc_symbols_add(swap32);
-    tcc_symbols_add(spr2);
-    tcc_symbols_add(rol);
-    tcc_symbols_add(ror);
-    tcc_symbols_add(mycrc);
-    tcc_symbols_add(mytolower);
-    tcc_symbols_add(mytoupper);
-
-    // libtcc.a
-    tcc_symbols_add(__ashldi3);
-    tcc_symbols_add(__ashrdi3);
-    tcc_symbols_add(__divdi3);
-    #if defined(i386) // got a warning on MacOS but still working
-    tcc_symbols_add(__fixdfdi);
-    tcc_symbols_add(__fixsfdi);
-    tcc_symbols_add(__fixunsdfdi);
-    tcc_symbols_add(__fixunssfdi);
-    tcc_symbols_add(__fixunsxfdi);
-    tcc_symbols_add(__fixxfdi);
-    tcc_symbols_add(__floatundidf);
-    tcc_symbols_add(__floatundisf);
-    tcc_symbols_add(__floatundixf);
-    #endif
-    tcc_symbols_add(__lshrdi3);
-    tcc_symbols_add(__moddi3);
-    tcc_symbols_add(__udivdi3);
-    //tcc_symbols_add(__udivmoddi4);
-    tcc_symbols_add(__umoddi3);
-
-    /*
-    tcc_symbols_add(__getmainargs);
-    tcc_symbols_add(__set_app_type);
-    tcc_symbols_add(__try__);
-    tcc_symbols_add(_controlfp);
-    tcc_symbols_add(_dowildcard);
-    tcc_symbols_add(_imp____argc);
-    tcc_symbols_add(_imp____argv);
-    tcc_symbols_add(_imp___environ);
-    tcc_symbols_add(_runmain);
-    tcc_symbols_add(_start);
-    tcc_symbols_add(__wgetmainargs);
-    tcc_symbols_add(_imp____wargv);
-    tcc_symbols_add(_imp___wenviron);
-    tcc_symbols_add(_runwmain);
-    tcc_symbols_add(_wstart);
-    tcc_symbols_add(_GetCommandLineA@0);
-    tcc_symbols_add(_GetModuleHandleA@4);
-    tcc_symbols_add(_GetStartupInfoA@4);
-    tcc_symbols_add(_runwinmain);
-    tcc_symbols_add(_strdup);
-    tcc_symbols_add(_WinMain@16);
-    tcc_symbols_add(_winstart);
-    tcc_symbols_add(strstr);
-    tcc_symbols_add(_GetCommandLineW@0);
-    tcc_symbols_add(_GetModuleHandleW@4);
-    tcc_symbols_add(_GetStartupInfoW@4);
-    tcc_symbols_add(_runwwinmain);
-    tcc_symbols_add(_wcsdup);
-    tcc_symbols_add(_wWinMain@16);
-    tcc_symbols_add(_wwinstart);
-    tcc_symbols_add(wcsstr);
-    tcc_symbols_add(___try__);
-    tcc_symbols_add(__chkstk);
-    tcc_symbols_add(_except_handler3);
-    tcc_symbols_add(_exception_code);
-    tcc_symbols_add(_exception_info);
-    tcc_symbols_add(_exit);
-    tcc_symbols_add(_XcptFilter);
-    tcc_symbols_add(seh_except);
-    tcc_symbols_add(seh_filter);
-    tcc_symbols_add(seh_handler);
-    tcc_symbols_add(seh_scopetable);
-    tcc_symbols_add(__bound_calloc);
-    tcc_symbols_add(__bound_check);
-    tcc_symbols_add(__bound_delete_region);
-    tcc_symbols_add(__bound_empty_t2);
-    tcc_symbols_add(__bound_error_msg);
-    tcc_symbols_add(__bound_exit);
-    tcc_symbols_add(__bound_find_region);
-    tcc_symbols_add(__bound_free);
-    tcc_symbols_add(__bound_init);
-    tcc_symbols_add(__bound_invalid_t2);
-    tcc_symbols_add(__bound_local_delete);
-    tcc_symbols_add(__bound_local_new);
-    tcc_symbols_add(__bound_main_arg);
-    tcc_symbols_add(__bound_malloc);
-    tcc_symbols_add(__bound_memalign);
-    tcc_symbols_add(__bound_memcpy);
-    tcc_symbols_add(__bound_memmove);
-    tcc_symbols_add(__bound_memset);
-    tcc_symbols_add(__bound_new_page);
-    tcc_symbols_add(__bound_new_region);
-    tcc_symbols_add(__bound_ptr_add);
-    tcc_symbols_add(__bound_ptr_indir1);
-    tcc_symbols_add(__bound_ptr_indir12);
-    tcc_symbols_add(__bound_ptr_indir16);
-    tcc_symbols_add(__bound_ptr_indir2);
-    tcc_symbols_add(__bound_ptr_indir4);
-    tcc_symbols_add(__bound_ptr_indir8);
-    tcc_symbols_add(__bound_realloc);
-    tcc_symbols_add(__bound_strcpy);
-    tcc_symbols_add(__bound_strlen);
-    tcc_symbols_add(__bound_t1);
-    tcc_symbols_add(__bounds_start);
-    tcc_symbols_add(_imp___iob);
-    tcc_symbols_add(add_region);
-    tcc_symbols_add(bound_alloc_error);
-    tcc_symbols_add(bound_error);
-    tcc_symbols_add(bound_free_entry);
-    tcc_symbols_add(bound_new_entry);
-    tcc_symbols_add(delete_region);
-    tcc_symbols_add(fprintf);
-    tcc_symbols_add(free);
-    tcc_symbols_add(get_page);
-    tcc_symbols_add(get_region_size);
-    tcc_symbols_add(inited);
-    tcc_symbols_add(install_malloc_hooks);
-    tcc_symbols_add(libc_free);
-    tcc_symbols_add(libc_malloc);
-    //tcc_symbols_add(malloc);
-    tcc_symbols_add(mark_invalid);
-    tcc_symbols_add(memcpy);
-    tcc_symbols_add(memmove);
-    tcc_symbols_add(memset);
-    tcc_symbols_add(restore_malloc_hooks);
-    tcc_symbols_add(alloca);
-    tcc_symbols_add(__bound_alloca);
-    tcc_symbols_add(__bound_new_region);
-    tcc_symbols_add(exit);
-    */
-
-    return 0;
-}
+#include "tcc_symbols.c"
 
 
 

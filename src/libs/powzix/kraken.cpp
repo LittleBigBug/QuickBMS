@@ -19,7 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "stdafx.h"
 
- static unsigned int _rotl(  unsigned int value, int shift )
+ static unsigned int kraken_rotl(  unsigned int value, int shift )
  {
      int max_bits = sizeof(value)<<3; 
      if ( shift > max_bits )
@@ -348,14 +348,14 @@ uint32 BitReader_ReadDistance(BitReader *bits, uint32 v) {
   uint32 w, m, n, rv;
   if (v < 0xF0) {
     n = (v >> 4) + 4;
-    w = _rotl(bits->bits | 1, n);
+    w = kraken_rotl(bits->bits | 1, n);
     bits->bitpos += n;
     m = (2 << n) - 1;
     bits->bits = w & ~m;
     rv = ((w & m) << 4) + (v & 0xF) - 248;
   } else {
     n = v - 0xF0 + 4;
-    w = _rotl(bits->bits | 1, n);
+    w = kraken_rotl(bits->bits | 1, n);
     bits->bitpos += n;
     m = (2 << n) - 1;
     bits->bits = w & ~m;
@@ -375,14 +375,14 @@ uint32 BitReader_ReadDistanceB(BitReader *bits, uint32 v) {
   uint32 w, m, n, rv;
   if (v < 0xF0) {
     n = (v >> 4) + 4;
-    w = _rotl(bits->bits | 1, n);
+    w = kraken_rotl(bits->bits | 1, n);
     bits->bitpos += n;
     m = (2 << n) - 1;
     bits->bits = w & ~m;
     rv = ((w & m) << 4) + (v & 0xF) - 248;
   } else {
     n = v - 0xF0 + 4;
-    w = _rotl(bits->bits | 1, n);
+    w = kraken_rotl(bits->bits | 1, n);
     bits->bitpos += n;
     m = (2 << n) - 1;
     bits->bits = w & ~m;
@@ -1458,10 +1458,10 @@ int Kraken_DecodeMultiArray(const uint8 *src, const uint8 *src_end,
     int numbits_f = interval_lenlog2[i + 0];
     int numbits_b = interval_lenlog2[i + 1];
 
-    bits_f = _rotl(bits_f | 1, numbits_f);
+    bits_f = kraken_rotl(bits_f | 1, numbits_f);
     bitpos_f += numbits_f - 8 * ((bitpos_f + 7) >> 3);
 
-    bits_b = _rotl(bits_b | 1, numbits_b);
+    bits_b = kraken_rotl(bits_b | 1, numbits_b);
     bitpos_b += numbits_b - 8 * ((bitpos_b + 7) >> 3);
 
     int value_f = bits_f & bitmasks[numbits_f];
@@ -1478,7 +1478,7 @@ int Kraken_DecodeMultiArray(const uint8 *src, const uint8 *src_end,
   if (i < num_lens) {
     bits_f |= _byteswap_ulong(*(uint32*)f) >> (24 - bitpos_f);
     int numbits_f = interval_lenlog2[i];
-    bits_f = _rotl(bits_f | 1, numbits_f);
+    bits_f = kraken_rotl(bits_f | 1, numbits_f);
     int value_f = bits_f & bitmasks[numbits_f];
     decoded_intervals[i + 0] = value_f;
   }

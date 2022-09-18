@@ -52,10 +52,10 @@ static int WriteOutputFile(int chr) {
 #define START_STRING   (MAX_CHAR_CODE + 1)
 
 
-int InitModel (int);
-void CompressSymbol (int);
-int ExpandSymbol (void);
-void CloseModel (void);
+static int InitModel (int);
+static void CompressSymbol (int);
+static int ExpandSymbol (void);
+static void CloseModel (void);
 
 #define MIN_RANGE 0x4001
 #define MAX_RANGE 0xFFFF
@@ -71,16 +71,16 @@ struct coder_state
 };
 
 
-void InitCoder (void);
-void CloseCoder (void);
-void EncodeArith (unsigned, unsigned, unsigned);
-void StartDecode (void);
-int DecodeArith (unsigned);
-void UpdateDecoder (unsigned, unsigned, unsigned);
-void SaveCoderState (struct coder_state *);
-void RestoreCoderState (struct coder_state *);
-int CodeLength (struct coder_state *);
-int ResetOutputPointer (int);
+static void InitCoder (void);
+static void CloseCoder (void);
+static void EncodeArith (unsigned, unsigned, unsigned);
+static void StartDecode (void);
+static int DecodeArith (unsigned);
+static void UpdateDecoder (unsigned, unsigned, unsigned);
+static void SaveCoderState (struct coder_state *);
+static void RestoreCoderState (struct coder_state *);
+static int CodeLength (struct coder_state *);
+static int ResetOutputPointer (int);
 
 /*
 	Declare variables use for arithmetic compression
@@ -111,7 +111,7 @@ static unsigned get_bit (void);
 	Initialize arithmetic coder at start of any compress/expand procedure
 */
 
-void InitCoder (void)
+static void InitCoder (void)
 
 {
 	low = 0;
@@ -126,7 +126,7 @@ void InitCoder (void)
 	Force final byte to be output to file
 */
 
-void CloseCoder (void)
+static void CloseCoder (void)
 
 {
 	int i;
@@ -143,7 +143,7 @@ void CloseCoder (void)
 	Allows state to be restored at a later time
 */
 
-void SaveCoderState (struct coder_state *p)
+static void SaveCoderState (struct coder_state *p)
 
 {
 	p -> low = low;
@@ -153,7 +153,7 @@ void SaveCoderState (struct coder_state *p)
 	p -> fpos = codesize;
 }
 
-int ResetOutputPointer (int pos)
+static int ResetOutputPointer (int pos)
 {
 	return outfile[-pos];
 }
@@ -164,7 +164,7 @@ int ResetOutputPointer (int pos)
 	Set all internal values to their original state
 */
 
-void RestoreCoderState (struct coder_state *p)
+static void RestoreCoderState (struct coder_state *p)
 
 {
 	int n;
@@ -194,7 +194,7 @@ void RestoreCoderState (struct coder_state *p)
 	Returns difference between saved position and current position
 */
 
-int CodeLength (struct coder_state *csptr)
+static int CodeLength (struct coder_state *csptr)
 
 {
 	int len;
@@ -215,7 +215,7 @@ int CodeLength (struct coder_state *csptr)
 	Update coder values for next symbol
 */
 
-void EncodeArith (unsigned base, unsigned freq, unsigned cmax)
+static void EncodeArith (unsigned base, unsigned freq, unsigned cmax)
 
 {
 	unsigned long t;
@@ -391,7 +391,7 @@ static unsigned get_bit (void)
 	Initialize arithmetic decode procedure
 */
 
-void StartDecode (void)
+static void StartDecode (void)
 
 {
 	int i;
@@ -411,7 +411,7 @@ void StartDecode (void)
 	Note that decoder must be updated with actual frequencies used
 */
 
-int DecodeArith (unsigned cmax)
+static int DecodeArith (unsigned cmax)
 
 {
 	unsigned long t;
@@ -429,7 +429,7 @@ int DecodeArith (unsigned cmax)
 	Read additional bits from input based on symbol values
 */
 
-void UpdateDecoder (unsigned base, unsigned freq, unsigned cmax)
+static void UpdateDecoder (unsigned base, unsigned freq, unsigned cmax)
 
 {
 	unsigned long t;
@@ -669,7 +669,7 @@ static int find_string_len (void);
 	Alocate and initialize tables
 */
 
-int InitModel (int n)
+static int InitModel (int n)
 
 {
 	unsigned i;
@@ -746,7 +746,7 @@ int InitModel (int n)
 	Compress next symbol
 */
 
-void CompressSymbol (int ch)
+static void CompressSymbol (int ch)
 
 {
 	int i;
@@ -795,7 +795,7 @@ void CompressSymbol (int ch)
 	Expand next symbol from input stream
 */
 
-int ExpandSymbol (void)
+static int ExpandSymbol (void)
 
 {
 	int ch;
@@ -1525,7 +1525,7 @@ static unsigned switch_char_freq (unsigned scount, unsigned cmax)
 	Close arithmetic coder and flush output
 */
 
-void CloseModel (void)
+static void CloseModel (void)
 
 {
 	if (string_state == STRING_ACTIVE) clear_text_string ();

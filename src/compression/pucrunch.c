@@ -121,12 +121,12 @@ static int outPointer = 0;
 
 static const unsigned char *up_Data;
 static int up_Mask, up_Byte;
-void up_SetInput(const unsigned char *data) {
+static void up_SetInput(const unsigned char *data) {
     up_Data = data;
     up_Mask = 0x80;
     up_Byte = 0;
 }
-int up_GetBits(int bits) {
+static int up_GetBits(int bits) {
     int val = 0;
 
     while (bits--) {
@@ -142,7 +142,7 @@ int up_GetBits(int bits) {
     }
     return val;
 }
-int up_GetValue(void) {
+static int up_GetValue(void) {
     int i = 0;
 
     while (i<maxGamma) {

@@ -31,8 +31,12 @@ the beginning is a thing of the past.
 
 The functions and variables forming the interface of the compression library
 are declared in the file 'lzlib.h'. Usage examples of the library are given
-in the files 'bbexample.c', 'ffexample.c', and 'main.c' from the source
+in the files 'bbexample.c', 'ffexample.c', and 'minilzip.c' from the source
 distribution.
+
+All the library functions are thread safe. The library does not install any
+signal handler. The decoder checks the consistency of the compressed data,
+so the library should never crash even in case of corrupted input.
 
 Compression/decompression is done by repeatedly calling a couple of
 read/write functions until all the data have been processed by the library.
@@ -60,10 +64,6 @@ Lzlib is able to compress and decompress streams of unlimited size by
 automatically creating multimember output. The members so created are large,
 about 2 PiB each.
 
-All the library functions are thread safe. The library does not install
-any signal handler. The decoder checks the consistency of the compressed
-data, so the library should never crash even in case of corrupted input.
-
 In spite of its name (Lempel-Ziv-Markov chain-Algorithm), LZMA is not a
 concrete algorithm; it is more like "any algorithm using the LZMA coding
 scheme". For example, the option '-0' of lzip uses the scheme in almost the
@@ -73,7 +73,7 @@ finding coding sequences of minimum size than the one currently used by lzip
 could be developed, and the resulting sequence could also be coded using the
 LZMA coding scheme.
 
-Lzlib currently implements two variants of the LZMA algorithm; fast (used by
+Lzlib currently implements two variants of the LZMA algorithm: fast (used by
 option '-0' of minilzip) and normal (used by all other compression levels).
 
 The high compression of LZMA comes from combining two basic, well-proven
@@ -93,7 +93,7 @@ been compressed. Decompressed is used to refer to data which have undergone
 the process of decompression.
 
 
-Copyright (C) 2009-2021 Antonio Diaz Diaz.
+Copyright (C) 2009-2022 Antonio Diaz Diaz.
 
 This file is free documentation: you have unlimited permission to copy,
 distribute, and modify it.

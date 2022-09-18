@@ -194,18 +194,19 @@ typedef int unrep_io_func (/*void* param,*/ void* buf, int size);
 
 
 
+static
 unsigned char   *unrep_in,
                 *unrep_inl,
                 *unrep_out,
                 *unrep_outl;
 
-int unrep_fread(void *buf, int size) {
+static int unrep_fread(void *buf, int size) {
     if(size > (unrep_inl - unrep_in)) size = unrep_inl - unrep_in;
     memcpy(buf, unrep_in, size);
     unrep_in += size;
     return(size);
 }
-int unrep_fwrite(void *buf, int size) {
+static int unrep_fwrite(void *buf, int size) {
     if(size > (unrep_outl - unrep_out)) size = unrep_outl - unrep_out;
     memcpy(unrep_out, buf, size);
     unrep_out += size;

@@ -24,6 +24,7 @@ enum {
     LC_LZ17,
     LC_LZ18,
     LC_LZ19,
+    //LC_LZ20,  // in DLL 1.90 but there is no need to update the one in quickbms since never used
 
     LC_RLE1 = 100,
     LC_RLE2,

@@ -38,8 +38,8 @@ typedef unsigned long long ulonglong;
 
 static const char BCM_magic[]="BCM!";
 
-unsigned char *bcm_fin;
-unsigned char *bcm_fout;
+static unsigned char *bcm_fin;
+static unsigned char *bcm_fout;
 
 class BCM {
 

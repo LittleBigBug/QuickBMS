@@ -2976,7 +2976,10 @@ unsigned char *sign_ext(unsigned char *data, int datalen) {
             if(!strnicmp(data, "<html", 5)) return("htm");
             if(!strnicmp(data, "<DOC",  4)) return("htm");
             for(i = 0; i < MAX_EXT_CHECK; i++) {
-                if(!isprint(data[i])) break;
+                // isprint is not available on Linux
+                //if(!isprint(data[i])) break;
+                if(data[i] <= 0x1f) break;
+                if(data[i] >= 0x7f) break;
             }
             if(i >= MAX_EXT_CHECK) {
                 if((data[0] == '#') || (data[0] == '/')) return("txt");

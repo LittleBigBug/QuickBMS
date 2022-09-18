@@ -114,16 +114,21 @@ static int xputc(int chr, void *skip) {
 
 #define runThresh    16         /* encode 0 runs longer than this */
 
+static 
 FILE    *inFile,                /* the main input file */
         *outFile;               /* the main output file */
 
+static 
 time_t sttTime, endTime;        /* to time the operation */
 
+static 
 us32    *Contexts,              /* the table of contexts */
         mask1, mask23;
+static 
 int     ChToIx[260],            /* for pseudo MTF */
         IxToCh[260];            /*  "   "  "   "  */ 
                 
+static 
 int     Order = 3,		        /* encoding order */
         error = 0;              /* error indicator */
 #if Stats
@@ -140,6 +145,7 @@ int     Order = 3,		        /* encoding order */
         logCnt;                 /* symbols left to log */
 #endif
         
+static 
 int32   ctxParam = 15,          /* initially 2^15 contexts */
         currContexts = -1,      /* number of contexts */
         ctxMask,                /* get context index from hash */
@@ -148,6 +154,7 @@ int32   ctxParam = 15,          /* initially 2^15 contexts */
         compBytes, dataBytes;   /* data counters */
         //runLength;              /* rank-0 length */
         
+static 
 char    Header[20],             /* the file header */
         outSuffix[8],           /* output suffix */
         inName[80], outName[80];        /* file names */
@@ -162,14 +169,14 @@ char    Header[20],             /* the file header */
 
 /* ---------- prototype declarations --------- */
 
-void startoutputtingbits(void);
-void doneoutputtingbits(void);
-void startinputtingbits(void);
+static void startoutputtingbits(void);
+static void doneoutputtingbits(void);
+static void startinputtingbits(void);
 
-int  checkHeader();
-int Initialize();
-int decodeFile();
-char convByte(int byte);
+static int  checkHeader();
+static int Initialize();
+static int decodeFile();
+static char convByte(int byte);
      
 /* ===== Convert a symbol to a printable code (Macintosh specific) ===== */
 
@@ -188,6 +195,7 @@ char convByte(int byte);
 
 /* ========== input output routines ========== */
 
+static 
 us32    BitBuffer,   /* the bit output buffer */
         BitsInBuf,   /* bits in the buffer */
         theBits,     /* return value from getBits and lookBits */
@@ -196,7 +204,7 @@ us32    BitBuffer,   /* the bit output buffer */
                         0x1FF,  0x3FF,  0x7FF,  0xFFF, 
                         0x1FFF, 0x3FFF, 0x7FFF, 0xFFFF};
 
-void startoutputtingbits(void)
+static void startoutputtingbits(void)
     {
     BitBuffer = 0;      /* clear the buffer */ 
     BitsInBuf = 0;      /* and the bit count */
@@ -215,7 +223,7 @@ void startoutputtingbits(void)
       }                                                                                                 \
     }
 
-void doneoutputtingbits(void)
+static void doneoutputtingbits(void)
     {
     while (BitsInBuf > 8)       /* process high-order bytes */
       {
@@ -230,7 +238,7 @@ void doneoutputtingbits(void)
       }
     }
     
-void startinputtingbits(void)
+static void startinputtingbits(void)
     {
     BitBuffer = 0;      /* clear the buffer */ 
     BitsInBuf = 0;      /* and the bit count */
@@ -275,7 +283,7 @@ void startinputtingbits(void)
 
 /* ====== initialise the coding models etc, and emit values ====== */
 
-int Initialize(int log2Ctx)
+static int Initialize(int log2Ctx)
     {
     int i, ctxSize;
     
@@ -349,7 +357,7 @@ int Initialize(int log2Ctx)
     
 /* ========== expand a file ========== */
     
-int decodeFile()
+static int decodeFile()
     {    
     int headVal,                /* value from header record */
         rxCheck1=0, rxCheck2=0; /* checksums from trailer */

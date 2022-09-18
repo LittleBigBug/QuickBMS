@@ -363,19 +363,21 @@ assert_skipped gunzip 1.gz 2.gz
 cmp 2 file
 
 
-begin_test 'Multiple files, continue on error'
-cp file 1
-cp file 2
-chmod a-r 1
-assert_error 'Permission denied' gzip 1 2
-[ ! -e 1.gz ]
-cmp file <(gunzip -c 2.gz)
-rm -f 1
-cp 2.gz 1.gz
-chmod a-r 1.gz
-assert_error 'Permission denied' gunzip 1.gz 2.gz
-[ ! -e 1 ]
-cmp 2 file
+if (( $(id -u) != 0 )); then
+	begin_test 'Multiple files, continue on error'
+	cp file 1
+	cp file 2
+	chmod a-r 1
+	assert_error 'Permission denied' gzip 1 2
+	[ ! -e 1.gz ]
+	cmp file <(gunzip -c 2.gz)
+	rm -f 1
+	cp 2.gz 1.gz
+	chmod a-r 1.gz
+	assert_error 'Permission denied' gunzip 1.gz 2.gz
+	[ ! -e 1 ]
+	cmp 2 file
+fi
 
 
 begin_test 'Compressing empty file'
@@ -393,10 +395,8 @@ echo 1 > foo.gz
 assert_error '\<not in gzip format\>' gunzip foo.gz
 echo abcdefgh > foo.gz
 assert_error '\<not in gzip format\>' gunzip foo.gz
-xxd -r > foo.gz <<-EOF
-00000000: 1f8b 0800 0000 0000 00ff 4b4c 4a4e 4924  ..........KLJNI$
-00000010: 1673 0100 6c5b a262 2e00 0000            .s..l[.b....
-EOF
+echo -ne '\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x4b\x4c\x4a\x4e\x49\x24\x16\x73\x01\x00\x6c\x5b\xa2\x62\x2e\x00\x00\x00' \
+	> foo.gz
 assert_error '\<(not in gzip format|crc error)\>' gunzip foo.gz
 
 
@@ -460,6 +460,26 @@ for prog in gzip gunzip; do
 	for opt in '--invalid-option' '-0'; do
 		assert_error '\<(unrecognized|invalid) option\>' $prog $opt
 	done
+done
+
+
+begin_test '-t (test) option works'
+good_files=(
+'H4sIAAAAAAAAA3PMSVTITVTIzi9JVABTIJ5jzpGZelwAX+86ehsAAAA='
+'H4sIAAAAAAAAAwvJSFUoLM1MzlZIKsovz1NIy69QyCrNLShWyC9LLVIoAUrnJFZVKqTkp+txAQBqzFDrLQAAAA==')
+bad_files=(
+'H4sIAO1YYmAAA3PMSVTITVTIzi9JVABTIJ5jzpGZelwAX+46ehsAAAA='
+'H4sIAO1YYmAAA3PMSVTITVTIzi85VABTIJ5jzpGZelwAX+86ehsAAAA='
+'H4sIAAAAAAAAA3PMSVTITVTIzi9JVABTIJ5jzpGZelwAX+86ehsBAAA='
+'H4sIAAAAAAAAAwvJSFUoLM1MzlZIKsovz1NIy69QyCrNLShWyC9LLVIogUrnJFZVKqTkp+txAQBqzFDrLQAAAA=='
+'H4sIAAAAAAAAAwvJSFUoLM1MzlZIKsovz1NIy69QyCrNLShWyC9L')
+for contents in "${good_files[@]}"; do
+	echo "$contents" | base64 -d | gzip -t
+done
+for contents in "${bad_files[@]}"; do
+	echo "$contents" | base64 -d > file
+	assert_error '\<invalid compressed data|file corrupt|unexpected end of file|Out of memory\>' \
+		gzip -t file
 done
 
 

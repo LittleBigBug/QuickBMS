@@ -59,7 +59,7 @@ struct _wBitStream
 };
 typedef struct _wBitStream wBitStream;
 
-void BitStream_Prefetch(wBitStream* bs)
+static void BitStream_Prefetch(wBitStream* bs)
 {
 	(bs->prefetch) = 0;
 
@@ -76,7 +76,7 @@ void BitStream_Prefetch(wBitStream* bs)
 		(bs->prefetch) |= (*(bs->pointer + 7) << 0);
 }
 
-void BitStream_Fetch(wBitStream* bs)
+static void BitStream_Fetch(wBitStream* bs)
 {
 	(bs->accumulator) = 0;
 
@@ -95,7 +95,7 @@ void BitStream_Fetch(wBitStream* bs)
 	BitStream_Prefetch(bs);
 }
 
-void BitStream_Flush(wBitStream* bs)
+static void BitStream_Flush(wBitStream* bs)
 {
 	if ((bs->pointer - bs->buffer) < (bs->capacity + 0))
 		*(bs->pointer + 0) = (bs->accumulator >> 24);
@@ -110,7 +110,7 @@ void BitStream_Flush(wBitStream* bs)
 		*(bs->pointer + 3) = (bs->accumulator >> 0);
 }
 
-void BitStream_Shift(wBitStream* bs, UINT32 nbits)
+static void BitStream_Shift(wBitStream* bs, UINT32 nbits)
 {
 	bs->accumulator <<= nbits;
 	bs->position += nbits;
@@ -140,7 +140,7 @@ void BitStream_Shift(wBitStream* bs, UINT32 nbits)
 	}
 }
 
-void BitStream_Write_Bits(wBitStream* bs, UINT32 bits, UINT32 nbits)
+static void BitStream_Write_Bits(wBitStream* bs, UINT32 bits, UINT32 nbits)
 {
 	bs->position += nbits;
 	bs->offset += nbits;
@@ -166,7 +166,7 @@ void BitStream_Write_Bits(wBitStream* bs, UINT32 bits, UINT32 nbits)
 	}
 }
 
-void BitStream_Attach(wBitStream* bs, const BYTE* buffer, UINT32 capacity)
+static void BitStream_Attach(wBitStream* bs, const BYTE* buffer, UINT32 capacity)
 {
 	bs->position = 0;
 	bs->buffer = buffer;
@@ -177,7 +177,7 @@ void BitStream_Attach(wBitStream* bs, const BYTE* buffer, UINT32 capacity)
 	bs->length = bs->capacity * 8;
 }
 
-wBitStream* BitStream_New()
+static wBitStream* BitStream_New()
 {
 	wBitStream* bs = NULL;
 	bs = (wBitStream*) calloc(1, sizeof(wBitStream));
@@ -185,7 +185,7 @@ wBitStream* BitStream_New()
 	return bs;
 }
 
-void BitStream_Free(wBitStream* bs)
+static void BitStream_Free(wBitStream* bs)
 {
 	if (!bs)
 		return;
@@ -216,7 +216,7 @@ typedef struct _MPPC_CONTEXT MPPC_CONTEXT;
 
 #define ZeroMemory(X,Y)         memset(X, 0, Y)
 
-void mppc_context_reset(MPPC_CONTEXT* mppc, BOOL flush);
+static void mppc_context_reset(MPPC_CONTEXT* mppc, BOOL flush);
 
 // aluigi fix
 
@@ -262,7 +262,7 @@ static const UINT32 MPPC_MATCH_TABLE[256] =
 
 //#define DEBUG_MPPC	1
 
-int mppc_decompress(MPPC_CONTEXT* mppc, BYTE* pSrcData, UINT32 SrcSize, BYTE** ppDstData,
+static int mppc_decompress(MPPC_CONTEXT* mppc, BYTE* pSrcData, UINT32 SrcSize, BYTE** ppDstData,
                     UINT32* pDstSize, UINT32 flags)
 {
 	BYTE Literal;
@@ -599,7 +599,7 @@ int mppc_decompress(MPPC_CONTEXT* mppc, BYTE* pSrcData, UINT32 SrcSize, BYTE** p
 	return 1;
 }
 
-int mppc_compress(MPPC_CONTEXT* mppc, BYTE* pSrcData, UINT32 SrcSize, BYTE** ppDstData,
+static int mppc_compress(MPPC_CONTEXT* mppc, BYTE* pSrcData, UINT32 SrcSize, BYTE** ppDstData,
                   UINT32* pDstSize, UINT32* pFlags)
 {
 	BYTE* pSrcPtr;
@@ -926,7 +926,7 @@ int mppc_compress(MPPC_CONTEXT* mppc, BYTE* pSrcData, UINT32 SrcSize, BYTE** ppD
 	return 1;
 }
 
-void mppc_set_compression_level(MPPC_CONTEXT* mppc, DWORD CompressionLevel)
+static void mppc_set_compression_level(MPPC_CONTEXT* mppc, DWORD CompressionLevel)
 {
 	if (CompressionLevel < 1)
 	{
@@ -940,7 +940,7 @@ void mppc_set_compression_level(MPPC_CONTEXT* mppc, DWORD CompressionLevel)
 	}
 }
 
-void mppc_context_reset(MPPC_CONTEXT* mppc, BOOL flush)
+static void mppc_context_reset(MPPC_CONTEXT* mppc, BOOL flush)
 {
 	ZeroMemory(&(mppc->HistoryBuffer), sizeof(mppc->HistoryBuffer));
 	ZeroMemory(&(mppc->MatchBuffer), sizeof(mppc->MatchBuffer));
@@ -953,7 +953,7 @@ void mppc_context_reset(MPPC_CONTEXT* mppc, BOOL flush)
 	mppc->HistoryPtr = &(mppc->HistoryBuffer[mppc->HistoryOffset]);
 }
 
-MPPC_CONTEXT* mppc_context_new(DWORD CompressionLevel, BOOL Compressor)
+static MPPC_CONTEXT* mppc_context_new(DWORD CompressionLevel, BOOL Compressor)
 {
 	MPPC_CONTEXT* mppc;
 	mppc = calloc(1, sizeof(MPPC_CONTEXT));
@@ -978,7 +978,7 @@ MPPC_CONTEXT* mppc_context_new(DWORD CompressionLevel, BOOL Compressor)
 	return mppc;
 }
 
-void mppc_context_free(MPPC_CONTEXT* mppc)
+static void mppc_context_free(MPPC_CONTEXT* mppc)
 {
 	if (mppc)
 	{

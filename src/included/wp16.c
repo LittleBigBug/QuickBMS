@@ -2,15 +2,12 @@
 
 // http://romxhack.esforos.com/compresion-de-final-fantasy-1-de-psp-la-famosa-wp16-t44
 
-#include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 
-typedef uint8_t  u8;
-typedef uint16_t u16;
-typedef uint32_t u32;
+//typedef uint16_t u16;
 
 int wp16_decompress(unsigned char *in, unsigned char *out, size_t compressed_size, size_t decompressed_size) {
     size_t  real_decompressed_size = 0;
@@ -47,8 +44,8 @@ int wp16_decompress(unsigned char *in, unsigned char *out, size_t compressed_siz
 
   //while (!feof(in) && ftell(in) < start + compressed_size) {
   while(in < inl) {
-    u8 flags[4];
-    //fread(&flags, sizeof(u8), 4, in);
+    unsigned char flags[4];
+    //fread(&flags, sizeof(unsigned char), 4, in);
     for(x = 0; x < 4; x++) flags[x] = *in++;
 
     u16 vs[32];
@@ -80,6 +77,9 @@ quit:
 }
 
 /*
+#include <assert.h>
+typedef uint32_t u32;
+
 int main(int argc, char *argv[]) {
   if (argc != 2) {
     fprintf(stderr, "Usage: %s <filename>\n", argv[1]);

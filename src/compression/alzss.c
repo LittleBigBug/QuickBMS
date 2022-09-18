@@ -21,9 +21,9 @@ typedef uint8_t    u8;
 typedef uint32_t  u32;
 typedef int32_t   s32;
 
-size_t ALLZ_Decode(u8** ptr_dst, u8* src, size_t srcSize);
-s32 ALLZ_Setup_EncFlags(s32* encFlags, u8 alFlag, u8** ptr_encoded_data);
-s32 ALLZ_AnalyzeBlock(s32* encFlags, u8 alFlag, u8** ptr_encoded_data);
+//size_t ALLZ_Decode(u8** ptr_dst, u8* src, size_t srcSize);
+static s32 ALLZ_Setup_EncFlags(s32* encFlags, u8 alFlag, u8** ptr_encoded_data);
+static s32 ALLZ_AnalyzeBlock(s32* encFlags, u8 alFlag, u8** ptr_encoded_data);
 
 /**
  * @brief ALLZ_Decode
@@ -301,7 +301,7 @@ size_t ALLZ_Decode(u8** ptr_dst, u8* src, size_t srcSize)
     return (dst == decoded_eof) ? fullSize : 0;
 }
 
-s32 ALLZ_AnalyzeBlock(s32* encFlags, u8 alFlag, u8** ptr_encoded_data)
+static s32 ALLZ_AnalyzeBlock(s32* encFlags, u8 alFlag, u8** ptr_encoded_data)
 {
     u32 tempFlag;
     while(encFlags[1] < alFlag)
@@ -316,7 +316,7 @@ s32 ALLZ_AnalyzeBlock(s32* encFlags, u8 alFlag, u8** ptr_encoded_data)
     return (tempFlag & ((1 << alFlag) - 1));
 }
 
-s32 ALLZ_Setup_EncFlags(s32* encFlags, u8 alFlag, u8** ptr_encoded_data)
+static s32 ALLZ_Setup_EncFlags(s32* encFlags, u8 alFlag, u8** ptr_encoded_data)
 {
     u32 tempAlFlag = alFlag;
     u32 tempEncFlag;

@@ -1,5 +1,5 @@
 /*
-    Copyright 2009-2021 Luigi Auriemma
+    Copyright 2009-2022 Luigi Auriemma
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -414,7 +414,9 @@ int getvarnum(u8 *name, int namesz) {
 
 void var_check_idx(int idx, i32 line) {
     if((idx < 0) || (idx >= MAX_VARS)) {
-        fprintf(stderr, "\nError: the variable index is invalid (%"PRId"), there is an error in QuickBMS (%d)\n", idx, line);
+        fprintf(stderr,
+            "\nError: invalid variable index (%"PRId"), error in QuickBMS (%s %d)\n",
+            idx, __FILE__ /* ever var.c */, line);
         myexit(QUICKBMS_ERROR_BMS);
     }
     check_variable_errors(idx, NULL);
@@ -469,7 +471,7 @@ X5  array
 
 u8 *get_varname(int idx) {
     if((idx < 0) || (idx >= MAX_VARS)) {
-        //fprintf(stderr, "\nError: the variable index is invalid (%"PRId"), there is an error in QuickBMS\n", idx);
+        //fprintf(stderr, "\nError: invalid variable index (%"PRId"), error in QuickBMS\n", idx);
         //myexit(QUICKBMS_ERROR_BMS);
         return "";
     }
@@ -594,10 +596,15 @@ void *get_var_ptr_cmd(int idx, int cmd, int cmd_idx, int parse_strings, int *ret
     n = (cmd_idx < 0) ? idx : CMD.var[cmd_idx];
     if(n < 0) {    // MEMORY_FILE
         n = myabs(n);
-        ptr = (void *)g_memory_file[n].data + g_memory_file[n].pos;
+        ptr = (void *)(g_memory_file[n].data + g_memory_file[n].pos);
         if(ret_size) {
             *ret_size = g_memory_file[n].size - g_memory_file[n].pos;
             if(*ret_size < 0) *ret_size = 0;
+        }
+        if((cmd_idx >= 0) && CMD.num[cmd_idx]) {    // &var / VARPTR
+            // it's not possible to return the pointer to data+pos, so let's return data only
+            // please note that this feature is quite useless and senseless but it may work in some rare situations
+            ptr = (void *)&g_memory_file[n].data;
         }
     } else {
         if(parse_strings && var_is_a_string(n)) {
@@ -1383,21 +1390,21 @@ void variable_copy(variable_t *output, variable_t *input, int keep_content) {
     }
 
     if(input->sub_var) {
-        if(!keep_content) { // this is NOT a free, it will keep a backup
-            for(i = 0; i < input->sub_var->arrays; i++) {
-                output->sub_var->array[i].info = NULL;
-                output->sub_var->array[i].data = NULL;
-            }
-            output->sub_var->var    = NULL;
-            output->sub_var->array  = NULL;
-            output->sub_var         = NULL;
-        }
+        if(!keep_content) output->sub_var = NULL;
         malloc_copy((void **)&output->sub_var,        input->sub_var,        sizeof(sub_variable_t));
-        malloc_copy((void **)&output->sub_var->var,   input->sub_var->var,   input->sub_var->vars * sizeof(int));
+
+        if(!keep_content) output->sub_var->var = NULL;
+        malloc_copy((void **)&output->sub_var->var,   input->sub_var->var,   input->sub_var->vars   * sizeof(int));
+
+        if(!keep_content) output->sub_var->array = NULL;
         malloc_copy((void **)&output->sub_var->array, input->sub_var->array, input->sub_var->arrays * sizeof(data_t));
+
         for(i = 0; i < input->sub_var->arrays; i++) {
+            if(!keep_content) output->sub_var->array[i].info = NULL;
             malloc_copy((void **)&output->sub_var->array[i].info, input->sub_var->array[i].info, input->sub_var->vars * sizeof(int));
-            malloc_copy((void **)&output->sub_var->array[i].data, input->sub_var->array[i].data, input->sub_var->array[i].size);
+
+            if(!keep_content) output->sub_var->array[i].data = NULL;
+            malloc_copy((void **)&output->sub_var->array[i].data, input->sub_var->array[i].data, input->sub_var->array[i].size + 2);    // like in add_varval
         }
     }
 

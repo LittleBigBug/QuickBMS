@@ -1,5 +1,5 @@
 /* Lzlib - Compression library for the lzip format
-   Copyright (C) 2009-2021 Antonio Diaz Diaz.
+   Copyright (C) 2009-2022 Antonio Diaz Diaz.
 
    This library is free software. Redistribution and use in source and
    binary forms, with or without modification, are permitted provided
@@ -49,8 +49,6 @@ static int LZd_decode_member( struct LZ_decoder * const d )
 
   while( !Rd_finished( rdec ) )
     {
-    int len;
-    const int pos_state = LZd_data_position( d ) & pos_state_mask;
     /* const unsigned mpos = rdec->member_position;
     if( mpos - old_mpos > rd_min_available_bytes ) return 5;
     old_mpos = mpos; */
@@ -58,23 +56,19 @@ static int LZd_decode_member( struct LZ_decoder * const d )
       { if( !rdec->at_stream_end ) return 0;
         if( Cb_empty( &rdec->cb ) ) break; }	/* decode until EOF */
     if( !LZd_enough_free_bytes( d ) ) return 0;
+    const int pos_state = LZd_data_position( d ) & pos_state_mask;
     if( Rd_decode_bit( rdec, &d->bm_match[*state][pos_state] ) == 0 ) /* 1st bit */
       {
       /* literal byte */
       Bit_model * const bm = d->bm_literal[get_lit_state(LZd_peek_prev( d ))];
-      if( St_is_char( *state ) )
-        {
-        *state -= ( *state < 4 ) ? *state : 3;
+      if( ( *state = St_set_char( *state ) ) < 4 )
         LZd_put_byte( d, Rd_decode_tree8( rdec, bm ) );
-        }
       else
-        {
-        *state -= ( *state < 10 ) ? 3 : 6;
         LZd_put_byte( d, Rd_decode_matched( rdec, bm, LZd_peek( d, d->rep0 ) ) );
-        }
       continue;
       }
     /* match or repeated match */
+    int len;
     if( Rd_decode_bit( rdec, &d->bm_rep[*state] ) != 0 )	/* 2nd bit */
       {
       if( Rd_decode_bit( rdec, &d->bm_rep0[*state] ) == 0 )	/* 3rd bit */
@@ -100,13 +94,12 @@ static int LZd_decode_member( struct LZ_decoder * const d )
         d->rep0 = distance;
         }
       *state = St_set_rep( *state );
-      len = min_match_len + Rd_decode_len( rdec, &d->rep_len_model, pos_state );
+      len = Rd_decode_len( rdec, &d->rep_len_model, pos_state );
       }
     else					/* match */
       {
-      unsigned distance;
-      len = min_match_len + Rd_decode_len( rdec, &d->match_len_model, pos_state );
-      distance = Rd_decode_tree6( rdec, d->bm_dis_slot[get_len_state(len)] );
+      len = Rd_decode_len( rdec, &d->match_len_model, pos_state );
+      unsigned distance = Rd_decode_tree6( rdec, d->bm_dis_slot[get_len_state(len)] );
       if( distance >= start_dis_model )
         {
         const unsigned dis_slot = distance;

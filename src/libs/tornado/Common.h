@@ -27,9 +27,10 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__)
+//#if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__)
+//#if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__) || defined (__aarch64__)
 #define FREEARC_64BIT
-#endif
+//#endif
 
 #ifdef FREEARC_WIN
 #  include <windows.h>

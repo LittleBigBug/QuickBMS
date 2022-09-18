@@ -1,5 +1,5 @@
 /*
-    Copyright 2009-2021 Luigi Auriemma
+    Copyright 2009-2022 Luigi Auriemma
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -30,20 +30,35 @@
 #define string_to_execute_REDIRECT      (1 << 5)
 #define string_to_execute_MULTI         (1 << 6)
 
-u8 *string_to_execute(u8 *str, u8 *INPUT, u8 *INPUT_SIZE, u8 *OUTPUT, u8 *OUTPUT_SIZE, int *res, int exec_checks, int will_be_reparsed_by_bms) {
-#define string_to_execute_realloc(X) \
-            tmp = X; \
-            if((exesz + tmp) >= totsz) { \
-                totsz = exesz + tmp + 1024; \
-                exe = realloc(exe, totsz + 1); \
-                if(!exe) STD_ERR(QUICKBMS_ERROR_MEMORY); \
+int string_to_execute_assign(u8 *prefix, u8 *new_string, int old_string_size, int string_to_execute_MASK, u8 **exe, int *exesz, int *res, int exec_checks, int will_be_reparsed_by_bms) {
+    if(new_string) {
+        if(exec_checks && mystrchrs(new_string, "\"\'><;&|")) {
+            // do nothing
+        } else {
+            if(!prefix) prefix = "";
+            int     t = *exesz + strlen(prefix) + strlen(new_string);
+
+            // will_be_reparsed_by_bms MUST be ever quote delimited as written in the calling function
+            if(will_be_reparsed_by_bms || need_quote_delimiters(new_string)) {
+                *exe = realloc(*exe, t + 1+1 + 1);
+                if(!*exe) STD_ERR(QUICKBMS_ERROR_MEMORY);
+                *exesz += sprintf(*exe + *exesz, "\"%s%s\"", prefix, new_string);
+            } else {
+                *exe = realloc(*exe, t +       1);
+                if(!*exe) STD_ERR(QUICKBMS_ERROR_MEMORY);
+                *exesz += sprintf(*exe + *exesz,   "%s%s",   prefix, new_string);
             }
-    int     tmp,
-            idx,
-            exesz   = 0,
-            totsz   = 0;
+        }
+    }
+    if(res) *res |= string_to_execute_MASK;
+    return old_string_size;
+}
+
+u8 *string_to_execute(u8 *str, u8 *INPUT, u8 *INPUT_SIZE, u8 *OUTPUT, u8 *OUTPUT_SIZE, int *res, int exec_checks, int will_be_reparsed_by_bms) {
+    int     idx,
+            exesz   = 0;
     u8      *VAR,
-            *exe,
+            *exe    = NULL,
             *p,
             *l,
             *limit;
@@ -51,8 +66,7 @@ u8 *string_to_execute(u8 *str, u8 *INPUT, u8 *INPUT_SIZE, u8 *OUTPUT, u8 *OUTPUT
     if(!str) return NULL;
     // do NOT modify the content of str
     if(res) *res = 0;
-    totsz = strlen(str) + 1024;
-    exe = malloc(totsz + 1);
+    exe = malloc(1);
     if(!exe) STD_ERR(QUICKBMS_ERROR_MEMORY);
     exe[0] = 0;
     limit = str + strlen(str);
@@ -65,20 +79,16 @@ u8 *string_to_execute(u8 *str, u8 *INPUT, u8 *INPUT_SIZE, u8 *OUTPUT, u8 *OUTPUT
             if(res) *res |= string_to_execute_MULTI;
         }
 
-#define string_to_execute_assign(X,Y) \
-    if(X) { \
-        if(exec_checks && mystrchrs(X, "\"\'><;&|")) { \
-        } else { \
-            string_to_execute_realloc(1 + strlen(X) + 1) \
-            if(will_be_reparsed_by_bms || need_quote_delimiters(X)) { \
-                exesz += sprintf(exe + exesz, "\"%s\"", X); \
-            } else { \
-                exesz += sprintf(exe + exesz,   "%s",   X); \
-            } \
-        } \
-    } \
-    p += Y; \
-    if(res) *res |= string_to_execute_##X;
+    #define string_to_execute_strnicmp(X,Y) \
+               if(!strnicmp(p,              "#"#X"#", 1+Y+1)) {   \
+            p += string_to_execute_assign(NULL, X,    1+Y+1,        string_to_execute_##X, &exe, &exesz, res, exec_checks, will_be_reparsed_by_bms); \
+        \
+        } else if(!strnicmp(p,             "&#"#X"#", 2+Y+1)) {   \
+            p += string_to_execute_assign( "&", X,    2+Y+1,        string_to_execute_##X, &exe, &exesz, res, exec_checks, will_be_reparsed_by_bms); \
+        \
+        } else if(!strnicmp(p,             "*#"#X"#", 2+Y+1)) {   \
+            p += string_to_execute_assign( "*", X,    2+Y+1,        string_to_execute_##X, &exe, &exesz, res, exec_checks, will_be_reparsed_by_bms);
+
 
         if(p[0] == '%') {
             p++;
@@ -89,30 +99,25 @@ u8 *string_to_execute(u8 *str, u8 *INPUT, u8 *INPUT_SIZE, u8 *OUTPUT, u8 *OUTPUT
             if(idx < 0) continue;
             VAR = get_var(idx);
             if(!VAR) continue;
-            string_to_execute_assign(VAR, (l - p) + 1)
+            p += string_to_execute_assign(NULL, VAR, (l - p) + 1,   string_to_execute_VAR, &exe, &exesz, res, exec_checks, will_be_reparsed_by_bms);
 
-        } else if(!strnicmp(p, "#INPUT#", 7)) {
-            string_to_execute_assign(INPUT, 7)
+        } else string_to_execute_strnicmp(INPUT,       5)
 
-        } else if(!strnicmp(p, "#INPUT_SIZE#", 12)) {
-            string_to_execute_assign(INPUT_SIZE, 12)
+        } else string_to_execute_strnicmp(INPUT_SIZE,  10)
 
-        } else if(!strnicmp(p, "#OUTPUT#", 8)) {
-            string_to_execute_assign(OUTPUT, 8)
+        } else string_to_execute_strnicmp(OUTPUT,      6)
 
-        } else if(!strnicmp(p, "#OUTPUT_SIZE#", 13)) {
-            string_to_execute_assign(OUTPUT_SIZE, 13)
+        } else string_to_execute_strnicmp(OUTPUT_SIZE, 11)
 
         } else {
-            string_to_execute_realloc(1)
+            exe = realloc(exe, exesz + 1 + 1);
+            if(!exe) STD_ERR(QUICKBMS_ERROR_MEMORY);
             exe[exesz++] = *p;
             p++;
         }
     }
-    exe = realloc(exe, exesz + 1);
-    if(!exe) STD_ERR(QUICKBMS_ERROR_MEMORY);
     exe[exesz] = 0;
-    return(exe);
+    return exe;
 }
 
 
@@ -294,13 +299,14 @@ quit:
 
 
 int parse_bms(FILE *fds, u8 *inputs, int cmd, int eol_mode);
-int CMD_CallDLL_func(int cmd, u8 *input, int input_size, u8 *output, int output_size);
+int CMD_CallDLL_func(int cmd, u8 *input, int input_size, u8 *output, int output_size, int *calldll_ret);
 
 
 
 int quickbms_calldll_pipe(u8 *cmdstr, u8 *in, int insz, u8 *out, int outsz) {
     int     cmd,
-            ret;
+            ret,
+            calldll_ret;
     u8      *calldll_cmd = NULL,
             *p;
 
@@ -330,13 +336,18 @@ int quickbms_calldll_pipe(u8 *cmdstr, u8 *in, int insz, u8 *out, int outsz) {
     //if((cmd + 1) < MAX_CMDS) // not needed because parse_bms already does this check
 
     parse_bms(NULL, calldll_cmd, cmd, 0);
-    ret = CMD_CallDLL_func(cmd, in, insz, out, outsz);
+    ret = CMD_CallDLL_func(cmd, in, insz, out, outsz, &calldll_ret);
     if(ret & string_to_execute_INPUT) {
         if(!(ret & string_to_execute_OUTPUT)) {
             if(out) {
                 if(outsz > insz) outsz = insz;
                 memcpy(out, in, outsz);
             }
+        }
+    }
+    if(!stricmp(get_varname(CMD.var[3]), "#OUTPUT_SIZE#")) {
+        if((outsz > 0) && (calldll_ret >= 0) && (calldll_ret <= outsz)) {
+            outsz = calldll_ret;
         }
     }
 
@@ -990,25 +1001,45 @@ int modpow_zed(unsigned char *content, int content_length) {
 
 
 
-void *DO_QUICKBMS_HASH(u8 *INPUT, int INPUT_SIZE) {
-    static u8   OUTPUT[(256 * 2) + 1];
-    int     OUTPUT_SIZE = INPUT_SIZE * 2;
-    if(OUTPUT_SIZE >= sizeof(OUTPUT)) STD_ERR(QUICKBMS_ERROR_MEMORY);
+int dumpa_reimport2(int idx, int value, u8 *value_str, u_int force_offset);
 
-    add_var(0, "QUICKBMS_HASH", INPUT, 0, INPUT_SIZE);
-    byte2hex(INPUT, INPUT_SIZE, OUTPUT, sizeof(OUTPUT), 1);
-    add_var(0, "QUICKBMS_HEXHASH", OUTPUT, 0, -1);
-    mytolower(OUTPUT);
-    add_var(0, "QUICKBMS_HEXHASHL", OUTPUT, 0, -1);
+
+
+u8 *QUICKBMS_CRC_HASH(u8 *INPUT, int INPUT_SIZE, u_int crc) {
+    static u8   OUTPUT[(256 * 2) + 1];
+    if(!INPUT) {
+
+        if(g_reimport_crc >= 0) {
+            dumpa_reimport2(g_reimport_crc, crc, NULL, -1);
+        }
+        add_var(0, "QUICKBMS_CRC", NULL, crc, sizeof(u_int));
+        sprintf(OUTPUT, "%"PRIu, crc);  // unused, maybe in the future
+
+    } else {
+
+        if(INPUT_SIZE < 0) STD_ERR(QUICKBMS_ERROR_MEMORY);
+
+        if(g_reimport_crc >= 0) {
+            dumpa_reimport2(g_reimport_crc, INPUT_SIZE /*-1 gets the size of the field*/, INPUT, -1);
+        }
+
+        if((INPUT_SIZE * 2) >= sizeof(OUTPUT)) STD_ERR(QUICKBMS_ERROR_MEMORY);
+
+        add_var(0, "QUICKBMS_HASH", INPUT, 0, INPUT_SIZE);
+        byte2hex(INPUT, INPUT_SIZE, OUTPUT, sizeof(OUTPUT), 1);
+        add_var(0, "QUICKBMS_HEXHASH", OUTPUT, 0, -1);
+        mytolower(OUTPUT);
+        add_var(0, "QUICKBMS_HEXHASHL", OUTPUT, 0, -1);
+    }
     return OUTPUT;
 }
 
 
 
 int do_quickbms_hmac(u8 *data, int datalen, u8 *digest) {
+    i32     digest_len = 0;
 #ifndef DISABLE_SSL
     EVP_MD_CTX  *tmpctx = NULL;
-    i32     tmp = 0;
 
     if(evpmd_ctx) {
         tmpctx = calloc(1, sizeof(EVP_MD_CTX));
@@ -1017,19 +1048,18 @@ int do_quickbms_hmac(u8 *data, int datalen, u8 *digest) {
     if(hmac_ctx) {
         HMAC_Update(hmac_ctx, data, datalen);
         if(evpmd_ctx) EVP_MD_CTX_copy_ex(tmpctx, evpmd_ctx);
-        HMAC_Final(hmac_ctx, digest, &tmp);
+        HMAC_Final(hmac_ctx, digest, &digest_len);
     } else if(evpmd_ctx) {
         EVP_DigestUpdate(evpmd_ctx, data, datalen);
         EVP_MD_CTX_copy_ex(tmpctx, evpmd_ctx);
-        EVP_DigestFinal(evpmd_ctx, digest, &tmp);
+        EVP_DigestFinal(evpmd_ctx, digest, &digest_len);
     }
     if(evpmd_ctx) {
         FREE(evpmd_ctx);
         evpmd_ctx = tmpctx;
     }
-    DO_QUICKBMS_HASH(digest, tmp);
 #endif
-    return 0;
+    return digest_len;
 }
 
 
@@ -1057,6 +1087,147 @@ static void fcrypt_encr_data(unsigned char *data, int d_len, aes_ctr_ctx_t *cx)
     cx->num = pos;
 }
 #endif
+
+
+
+int dumpa_reimport_crc(int var);
+
+
+
+// if datalen is negative then it will return 0 if encryption is enabled or -1 if disabled
+int perform_crchash(u8 *data, int datalen) {
+
+#ifndef EVP_MAX_MD_SIZE
+#define EVP_MAX_MD_SIZE 64
+#endif
+    u8      digest[EVP_MAX_MD_SIZE];
+    u_int   crc     = 0;
+    i32     tmp     = 0;
+
+    // if(datalen <= 0) NEVER ENABLE THIS because it's needed
+    // if(!data)        NEVER
+
+
+    // crc/hashing
+
+    QUICK_CRYPT_CASE(crc_ctx)
+        crc = crc_calc(crc_ctx, data, datalen, &tmp);   // tmp is the error
+        if(tmp) {
+            QUICKBMS_CRC_HASH(NULL, -1, 0);
+        } else {
+            QUICKBMS_CRC_HASH(NULL, -1, crc);
+        }
+
+#ifndef DISABLE_TOMCRYPT
+    } else if(tomcrypt_ctx && tomcrypt_ctx->hash) {
+        QUICK_CRYPT_CASE(tomcrypt_ctx)  // work-around for using the double "if" above
+            tomcrypt_doit(tomcrypt_ctx, NULL, data, datalen, digest, EVP_MAX_MD_SIZE, &tmp);
+            if(tmp >= 0) {
+                QUICKBMS_CRC_HASH(digest, tmp, -1);
+            }
+        }
+#endif
+
+    } else QUICK_CRYPT_CASE(sph_ctx)
+        tmp = sph(sph_ctx, data, datalen, digest);
+        QUICKBMS_CRC_HASH(digest, tmp, -1);
+
+    } else QUICK_CRYPT_CASE(spookyhash_ctx)
+        u64     spookyhash1 = spookyhash_ctx->hash1,
+                spookyhash2 = spookyhash_ctx->hash2;
+        switch(spookyhash_ctx->size) {
+            case 32:
+                spookyhash1 = (u32)spookyhash_32(data, datalen, spookyhash1);
+                memcpy(digest,               &spookyhash1, sizeof(u64));
+                break;
+            case 64:
+                spookyhash1 =      spookyhash_64(data, datalen, spookyhash1);
+                memcpy(digest,               &spookyhash1, sizeof(u64));
+                break;
+            default:
+                                   spookyhash_128(data, datalen, &spookyhash1, &spookyhash2);
+                dump128num(digest, spookyhash1, spookyhash2);
+                break;
+        }
+        QUICKBMS_CRC_HASH(NULL, -1, spookyhash1);    // useless for 128
+        tmp = spookyhash_ctx->size / 8;
+        QUICKBMS_CRC_HASH(digest, tmp, -1);
+
+    } else QUICK_CRYPT_CASE(murmurhash_ctx)
+        switch(murmurhash_ctx) {
+            case -32:
+                crc = qhashfnv1_32(data, datalen);
+                QUICKBMS_CRC_HASH(NULL, -1, crc);
+                break;
+            case -64:
+                crc = qhashfnv1_64(data, datalen);
+                QUICKBMS_CRC_HASH(NULL, -1, crc);
+                break;
+            case 32:
+                crc = qhashmurmur3_32(data, datalen);
+                QUICKBMS_CRC_HASH(NULL, -1, crc);
+                break;
+            default:
+                qhashmurmur3_128(data, datalen, digest);
+                QUICKBMS_CRC_HASH(digest, 16, -1);
+                break;
+        }
+
+    } else QUICK_CRYPT_CASE(xxhash_ctx)
+        XXH128_hash_t    xxh128 = {0};
+        switch(xxhash_ctx->size) {
+            case -32:
+            case 32:
+                crc = XXH32(data, datalen, xxhash_ctx->hash1);
+                QUICKBMS_CRC_HASH(NULL, -1, crc);
+                break;
+            case -64:
+                crc = XXH3_64bits_withSecret(data, datalen, xxhash_ctx->key, xxhash_ctx->keysz);
+                QUICKBMS_CRC_HASH(NULL, -1, crc);
+                break;
+            case -128:
+                xxh128 = XXH3_128bits_withSecret(data, datalen, xxhash_ctx->key, xxhash_ctx->keysz);
+                dump128num(digest, xxh128.low64, xxh128.high64);
+                QUICKBMS_CRC_HASH(digest, 16, -1);
+                break;
+            case 128:
+                if(xxhash_ctx->keysz > 0) {
+                    xxh128 = XXH3_128bits_withSecret(data, datalen, xxhash_ctx->key, xxhash_ctx->keysz);
+                } else {
+                    xxh128 = XXH128(data, datalen, xxhash_ctx->hash1);
+                }
+                dump128num(digest, xxh128.low64, xxh128.high64);
+                QUICKBMS_CRC_HASH(digest, 16, -1);
+                break;
+            default: //case 64:
+                if(xxhash_ctx->keysz > 0) {
+                    crc = XXH3_64bits_withSecret(data, datalen, xxhash_ctx->key, xxhash_ctx->keysz);
+                } else {
+                    crc = XXH64(data, datalen, xxhash_ctx->hash1);
+                }
+                QUICKBMS_CRC_HASH(NULL, -1, crc);
+                break;
+        }
+
+#ifndef DISABLE_SSL
+    } else QUICK_CRYPT_CASE(evpmd_ctx)  // probably I seem crazy for all these operations... but it's perfect!
+        if(!zip_aes_ctx) {  // better to avoid possible conflicts
+            tmp = do_quickbms_hmac(data, datalen, digest);
+            QUICKBMS_CRC_HASH(digest, tmp, -1);
+        }
+#endif
+
+    } else {
+        if(datalen < 0) return -1;
+    }
+
+    // code commented because it's used directly in QUICKBMS_CRC_HASH (no real advantage btw)
+    //if(g_reimport_crc >= 0) {
+    //    dumpa_reimport_crc(g_reimport_crc);
+    //}
+
+    return datalen;
+}
 
 
 
@@ -1111,9 +1282,6 @@ int perform_encryption(u8 *data, int datalen) {
             EVP_CipherFinal(evp_ctx, data + datalen, &tmp);
             datalen += tmp;
         }
-
-    } else QUICK_CRYPT_CASE(evpmd_ctx)  // probably I seem crazy for all these operations... but it's perfect!
-        do_quickbms_hmac(data, datalen, digest);
 
     } else QUICK_CRYPT_CASE(blowfish_ctx)
         if(!g_encrypt_mode) ENCRYPT_BLOCKS(8, BF_decrypt((void *)data, blowfish_ctx))
@@ -1175,13 +1343,8 @@ int perform_encryption(u8 *data, int datalen) {
         else                mcrypt_generic(mcrypt_ctx, data, datalen);
 #endif
 #ifndef DISABLE_TOMCRYPT
-    } else QUICK_CRYPT_CASE(tomcrypt_ctx)
-        if(tomcrypt_ctx->hash) {
-            tomcrypt_doit(tomcrypt_ctx, NULL, data, datalen, digest, EVP_MAX_MD_SIZE, &tmp);
-            if(tmp >= 0) {
-                DO_QUICKBMS_HASH(digest, tmp);
-            }
-        } else {
+    } else if(tomcrypt_ctx && !tomcrypt_ctx->hash) {
+        QUICK_CRYPT_CASE(tomcrypt_ctx)  // work-around for using the double "if" above
             tomcrypt_doit(tomcrypt_ctx, NULL, data, datalen, data, datalen, NULL);
         }
 #endif
@@ -1351,24 +1514,11 @@ int perform_encryption(u8 *data, int datalen) {
     } else QUICK_CRYPT_CASE(pc1_256_ctx)
         pc1_256(pc1_256_ctx, data, datalen, g_encrypt_mode);
 
-    } else QUICK_CRYPT_CASE(crc_ctx)
-        crc = crc_calc(crc_ctx, data, datalen, &tmp);   // tmp is the error
-        if(tmp) {
-            add_var(0, "QUICKBMS_CRC", NULL, 0, sizeof(u_int));
-        } else {
-            add_var(0, "QUICKBMS_CRC", NULL, crc, sizeof(u_int));
-        }
-
     } else QUICK_CRYPT_CASE(execute_ctx)
         quickbms_execute_pipe(execute_ctx, data, datalen, NULL, 0, NULL);
 
     } else QUICK_CRYPT_CASE(calldll_ctx)
         quickbms_calldll_pipe(calldll_ctx, data, datalen, NULL, 0);
-
-    } else QUICK_CRYPT_CASE(sph_ctx)
-        tmp = sph(sph_ctx, data, datalen, digest);
-
-        DO_QUICKBMS_HASH(digest, tmp);
 
     } else QUICK_CRYPT_CASE(mpq_ctx)
         if(!g_encrypt_mode) DecryptMpqBlock(data, datalen, *mpq_ctx);
@@ -1390,12 +1540,12 @@ int perform_encryption(u8 *data, int datalen) {
 
         // X = public or private    Y = decrypt or encrypt
         #define QUICKBMS_OPENSSL_RSA(X, Y) \
-            if(!rsa_ctx->openssl_rsa_##X  || RSA_##X##_##Y (datalen, data, data, rsa_ctx->openssl_rsa_##X,  RSA_PKCS1_PADDING) < 0) \
-            if(!rsa_ctx->openssl_rsa_##X  || RSA_##X##_##Y (datalen, data, data, rsa_ctx->openssl_rsa_##X,  RSA_SSLV23_PADDING) < 0) \
-            if(!rsa_ctx->openssl_rsa_##X  || RSA_##X##_##Y (datalen, data, data, rsa_ctx->openssl_rsa_##X,  RSA_NO_PADDING) < 0) \
-            if(!rsa_ctx->openssl_rsa_##X  || RSA_##X##_##Y (datalen, data, data, rsa_ctx->openssl_rsa_##X,  RSA_PKCS1_OAEP_PADDING) < 0) \
-            if(!rsa_ctx->openssl_rsa_##X  || RSA_##X##_##Y (datalen, data, data, rsa_ctx->openssl_rsa_##X,  RSA_X931_PADDING) < 0) \
-            if(!rsa_ctx->openssl_rsa_##X  || RSA_##X##_##Y (datalen, data, data, rsa_ctx->openssl_rsa_##X,  RSA_PKCS1_PSS_PADDING) < 0) \
+            if(!rsa_ctx->openssl_rsa || RSA_##X##_##Y (datalen, data, data, rsa_ctx->openssl_rsa, RSA_PKCS1_PADDING) < 0) \
+            if(!rsa_ctx->openssl_rsa || RSA_##X##_##Y (datalen, data, data, rsa_ctx->openssl_rsa, RSA_SSLV23_PADDING) < 0) \
+            if(!rsa_ctx->openssl_rsa || RSA_##X##_##Y (datalen, data, data, rsa_ctx->openssl_rsa, RSA_NO_PADDING) < 0) \
+            if(!rsa_ctx->openssl_rsa || RSA_##X##_##Y (datalen, data, data, rsa_ctx->openssl_rsa, RSA_PKCS1_OAEP_PADDING) < 0) \
+            if(!rsa_ctx->openssl_rsa || RSA_##X##_##Y (datalen, data, data, rsa_ctx->openssl_rsa, RSA_X931_PADDING) < 0) \
+            if(!rsa_ctx->openssl_rsa || RSA_##X##_##Y (datalen, data, data, rsa_ctx->openssl_rsa, RSA_PKCS1_PSS_PADDING) < 0)
 
         // X = function name    ... = arguments
         #define QUICKBMS_TOMCRYPT_RSA(X, ...) \
@@ -1480,83 +1630,6 @@ int perform_encryption(u8 *data, int datalen) {
     } else QUICK_CRYPT_CASE(chacha_ctx)
         chacha20_encrypt(chacha_ctx, data, data, datalen);  // encrypt and decrypt are the same
 
-    } else QUICK_CRYPT_CASE(spookyhash_ctx)
-        u64     spookyhash1 = spookyhash_ctx->hash1,
-                spookyhash2 = spookyhash_ctx->hash2;
-        switch(spookyhash_ctx->size) {
-            case 32:
-                spookyhash1 = (u32)spookyhash_32(data, datalen, spookyhash1);
-                memcpy(digest,               &spookyhash1, sizeof(u64));
-                break;
-            case 64:
-                spookyhash1 =      spookyhash_64(data, datalen, spookyhash1);
-                memcpy(digest,               &spookyhash1, sizeof(u64));
-                break;
-            default:
-                                   spookyhash_128(data, datalen, &spookyhash1, &spookyhash2);
-                dump128num(digest, spookyhash1, spookyhash2);
-                break;
-        }
-        add_var(0, "QUICKBMS_CRC", NULL, spookyhash1, sizeof(u_int));   // useless for 128
-        tmp = spookyhash_ctx->size / 8;
-        DO_QUICKBMS_HASH(digest, tmp);
-
-    } else QUICK_CRYPT_CASE(murmurhash_ctx)
-        switch(murmurhash_ctx) {
-            case -32:
-                crc = qhashfnv1_32(data, datalen);
-                add_var(0, "QUICKBMS_CRC", NULL, crc, sizeof(u_int));
-                break;
-            case -64:
-                crc = qhashfnv1_64(data, datalen);
-                add_var(0, "QUICKBMS_CRC", NULL, crc, sizeof(u_int));
-                break;
-            case 32:
-                crc = qhashmurmur3_32(data, datalen);
-                add_var(0, "QUICKBMS_CRC", NULL, crc, sizeof(u_int));
-                break;
-            default:
-                qhashmurmur3_128(data, datalen, digest);
-                DO_QUICKBMS_HASH(digest, 16);
-                break;
-        }
-
-    } else QUICK_CRYPT_CASE(xxhash_ctx)
-        XXH128_hash_t    xxh128 = {0};
-        switch(xxhash_ctx->size) {
-            case -32:
-            case 32:
-                crc = XXH32(data, datalen, xxhash_ctx->hash1);
-                add_var(0, "QUICKBMS_CRC", NULL, crc, sizeof(u_int));
-                break;
-            case -64:
-                crc = XXH3_64bits_withSecret(data, datalen, xxhash_ctx->key, xxhash_ctx->keysz);
-                add_var(0, "QUICKBMS_CRC", NULL, crc, sizeof(u_int));
-                break;
-            case -128:
-                xxh128 = XXH3_128bits_withSecret(data, datalen, xxhash_ctx->key, xxhash_ctx->keysz);
-                dump128num(digest, xxh128.low64, xxh128.high64);
-                DO_QUICKBMS_HASH(digest, 16);
-                break;
-            case 128:
-                if(xxhash_ctx->keysz > 0) {
-                    xxh128 = XXH3_128bits_withSecret(data, datalen, xxhash_ctx->key, xxhash_ctx->keysz);
-                } else {
-                    xxh128 = XXH128(data, datalen, xxhash_ctx->hash1);
-                }
-                dump128num(digest, xxh128.low64, xxh128.high64);
-                DO_QUICKBMS_HASH(digest, 16);
-                break;
-            default: //case 64:
-                if(xxhash_ctx->keysz > 0) {
-                    crc = XXH3_64bits_withSecret(data, datalen, xxhash_ctx->key, xxhash_ctx->keysz);
-                } else {
-                    crc = XXH64(data, datalen, xxhash_ctx->hash1);
-                }
-                add_var(0, "QUICKBMS_CRC", NULL, crc, sizeof(u_int));
-                break;
-        }
-
 #ifndef DISABLE_TOMCRYPT
 #ifdef LTC_PKCS_5
     } else QUICK_CRYPT_CASE(PBKDF_ctx)
@@ -1580,6 +1653,22 @@ int perform_encryption(u8 *data, int datalen) {
     }
     //return 0;  // don't return datalen because they are almost all block cipher encryptions and so it's all padded/aligned
     return(datalen);    // from version 0.3.11 I return datalen, only if I'm 100% sure that it's correct
+}
+
+
+
+// remember that it's not guarantee for crchash to contain 100% of the crc and hash algorithms,
+// indeed the Encryption command has ever performed encryption and crchash together without any
+// particular order while this new behavior has been introduced in 0.11.1 due to ImpType
+int perform_encryption_and_crchash(u8 *data, int datalen) {
+    if(g_encrypt_mode) {                                // ENCRYPT
+        datalen = perform_crchash   (data, datalen);    // - hash on plain-text
+        datalen = perform_encryption(data, datalen);    // - encrypt
+    } else {                                            // DECRYPT
+        datalen = perform_encryption(data, datalen);    // - decrypt
+        datalen = perform_crchash   (data, datalen);    // - hash on plain-text
+    }
+    return datalen;
 }
 
 
@@ -1660,10 +1749,10 @@ int perform_compression(u8 *in, int zsize, u8 **ret_out, int size, int *outsize,
         QUICK_COMP_CASE(LZXCHM) size = unmspack(in, zsize, out, size, 16, 2, -1, 0);
         QUICK_COMP_CASE(RLEW) size = unrlew(in, zsize, out, size);
         QUICK_COMP_CASE(LZJB) size = lzjb_decompress(in, out, zsize, size);
-        QUICK_COMP_CASE(SFL_BLOCK) size = expand_block(in, out, zsize, size);
-        QUICK_COMP_CASE(SFL_RLE) size = expand_rle(in, out, zsize, size);
-        QUICK_COMP_CASE(SFL_NULLS) size = expand_nulls(in, out, zsize, size);
-        QUICK_COMP_CASE(SFL_BITS) size = expand_bits(in, out, zsize, size);
+        QUICK_COMP_CASE(SFL_BLOCK) size = sfl_expand_block(in, out, zsize, size);
+        QUICK_COMP_CASE(SFL_RLE) size = sfl_expand_rle(in, out, zsize, size);
+        QUICK_COMP_CASE(SFL_NULLS) size = sfl_expand_nulls(in, out, zsize, size);
+        QUICK_COMP_CASE(SFL_BITS) size = sfl_expand_bits(in, out, zsize, size);
         QUICK_COMP_CASE(LZMA2)            QUICK_COMP_CASE_LZMA_DOIT(2,LZMA_FLAGS_NONE,0)
         QUICK_COMP_CASE(LZMA2_86HEAD)     QUICK_COMP_CASE_LZMA_DOIT(2,LZMA_FLAGS_86_HEADER,0) // contains the uncompressed size
         QUICK_COMP_CASE(LZMA2_86DEC)      QUICK_COMP_CASE_LZMA_DOIT(2,LZMA_FLAGS_86_DECODER,0)
@@ -2187,7 +2276,7 @@ int perform_compression(u8 *in, int zsize, u8 **ret_out, int size, int *outsize,
             */
         QUICK_COMP_CASE(SEGA_LZS2) t32 = *outsize; size = sega_lzs2(in, zsize, &out, &t32); *outsize = t32;
         QUICK_COMP_CASE(WOLF) size = dewolf(in, zsize, out, size, 9);
-        QUICK_COMP_CASE(COREONLINE) size = CO_Decompress(out, size, in);
+        QUICK_COMP_CASE(COREONLINE) size = defrogger(in, out); //size = CO_Decompress(out, size, in); /* same algorithm! */
         QUICK_COMP_CASE(MSZIP) size = unmspack(in, zsize, out, size, -1, -1, -1, 1);
         QUICK_COMP_CASE(QTM)
             tmp1 = 0;
@@ -2963,6 +3052,27 @@ int perform_compression(u8 *in, int zsize, u8 **ret_out, int size, int *outsize,
         QUICK_COMP_CASE(lzsd_gba2) t32 = *outsize; size = lzsd_gba2_decompress(in, &out, &t32); *outsize = t32;
         QUICK_COMP_CASE(pzz) size = PZZ_Decompress(in, out, zsize);
         QUICK_COMP_CASE(SL01) size = sld_decode((void *)in, out);
+        QUICK_COMP_CASE(rage_xfs) size = rage_xfs_decompress(in, zsize, out, size);
+        QUICK_COMP_CASE(wangan1) size = Wangan_DecompressType1(in, out, size);
+        QUICK_COMP_CASE(wangan2) size = Wangan_DecompressType2(in, out, size);
+        QUICK_COMP_CASE(wangan3) size = Wangan_DecompressType3(in, out, size);
+        QUICK_COMP_CASE(wangan5) size = Wangan_DecompressType5(in, out, size);
+        QUICK_COMP_CASE(LZ48) size = LZ48_decode(in, out);
+        QUICK_COMP_CASE(exo_decrunch) p = exo_decrunch(in + zsize, out + size); size = (out + size) - p; if(p != out) mymemmove(out, p, size);
+        QUICK_COMP_CASE(exo_decrunch_new) size = myexo_decrunch_new(in, zsize, out, size);
+        QUICK_COMP_CASE(bitbuster) size = unbitbuster(in, zsize, out, size);
+        QUICK_COMP_CASE(lazy) size = unlazy(in, zsize, out);
+        QUICK_COMP_CASE(nibrans) struct nibrans nbra; nibransInit(&nbra); /*the return is bytes from input*/ nibransDecode(&nbra, out, size, in, zsize);
+        QUICK_COMP_CASE(LZRS_ASOBO) size = lzss_fuel_decompress(in, zsize, out, size, 0);
+        QUICK_COMP_CASE(lzrhys) size = lzrhys(in, out);
+        QUICK_COMP_CASE(lze) size = LZE_decode(in, out);
+        QUICK_COMP_CASE(zx0) size = dzx_decompress(0, in, zsize, out);
+        QUICK_COMP_CASE(zx1) size = dzx_decompress(1, in, zsize, out);
+        QUICK_COMP_CASE(zx2) size = dzx_decompress(2, in, zsize, out);
+        QUICK_COMP_CASE(zx5) size = dzx_decompress(5, in, zsize, out);
+        QUICK_COMP_CASE(rzip)  size = runzip_chunk(in, out);
+        QUICK_COMP_CASE(melt1) size = melt1(in, zsize, out);
+        QUICK_COMP_CASE(melt2) size = melt2(in, zsize, out);
 
 
 
@@ -2995,10 +3105,10 @@ int perform_compression(u8 *in, int zsize, u8 **ret_out, int size, int *outsize,
         QUICK_COMP_CASE(BZIP2_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = bzip2_compress(in, zsize, out, size);
         QUICK_COMP_CASE(GZIP_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(20); size = gzip_compress(in, zsize, out, size);
         QUICK_COMP_CASE(LZSS_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = lzss_compress(in, zsize, out, size, g_comtype_dictionary);
-        QUICK_COMP_CASE(SFL_BLOCK_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = compress_block(in, out, zsize);
-        QUICK_COMP_CASE(SFL_RLE_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = compress_rle(in, out, zsize);
-        QUICK_COMP_CASE(SFL_NULLS_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = compress_nulls(in, out, zsize);
-        QUICK_COMP_CASE(SFL_BITS_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = compress_bits(in, out, zsize);
+        QUICK_COMP_CASE(SFL_BLOCK_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = sfl_compress_block(in, out, zsize);
+        QUICK_COMP_CASE(SFL_RLE_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = sfl_compress_rle(in, out, zsize);
+        QUICK_COMP_CASE(SFL_NULLS_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = sfl_compress_nulls(in, out, zsize);
+        QUICK_COMP_CASE(SFL_BITS_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = sfl_compress_bits(in, out, zsize);
         QUICK_COMP_CASE(LZF_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = lzf_compress_best(in, zsize, out, size);
         QUICK_COMP_CASE(BRIEFLZ_COMPRESS)
             if(!g_quickbms_dll) myalloc(&out, size = blz_max_packed_size(size), outsize);
@@ -3055,7 +3165,7 @@ int perform_compression(u8 *in, int zsize, u8 **ret_out, int size, int *outsize,
         QUICK_COMP_CASE(ZOPFLI_ZLIB_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0);
             size = -1;
             t32 = 0;
-            p = myzopfli(in, zsize, &t32, ZOPFLI_FORMAT_ZLIB, g_reimport ? 0 : 1);
+            p = myzopfli(in, zsize, &t32, ZOPFLI_FORMAT_ZLIB, ((g_reimport == 0) || (g_reimport == 1)) ? 1 : 0);    // no_reimport and reimport1 need the extreme mode
             if(p) {
                 if(!g_quickbms_dll) myalloc(&out, size = t32, outsize);
                 memcpy(out, p, size);
@@ -3064,7 +3174,7 @@ int perform_compression(u8 *in, int zsize, u8 **ret_out, int size, int *outsize,
         QUICK_COMP_CASE(ZOPFLI_DEFLATE_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0);
             size = -1;
             t32 = 0;
-            p = myzopfli(in, zsize, &t32, ZOPFLI_FORMAT_DEFLATE, g_reimport ? 0 : 1);
+            p = myzopfli(in, zsize, &t32, ZOPFLI_FORMAT_DEFLATE, ((g_reimport == 0) || (g_reimport == 1)) ? 1 : 0); // no_reimport and reimport1 need the extreme mode
             if(p) {
                 if(!g_quickbms_dll) myalloc(&out, size = t32, outsize);
                 memcpy(out, p, size);
@@ -3090,7 +3200,7 @@ int perform_compression(u8 *in, int zsize, u8 **ret_out, int size, int *outsize,
             size = -1;
             if(snappy_compress(in, zsize, out, &size_t_tmp) == SNAPPY_OK) size = size_t_tmp;
         QUICK_COMP_CASE(ZPAQ_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = zpaq_compress(in, zsize, out, size);
-        QUICK_COMP_CASE(BLOSC_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(1024 /*???*/); size = blosclz_compress(9, in, zsize, out, size);
+        QUICK_COMP_CASE(BLOSC_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(1024 /*???*/); size = blosclz_compress(9, in, zsize, out, size, 0);
         QUICK_COMP_CASE(GIPFELI_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = gipfeli_compress(in, zsize, out, size);
         QUICK_COMP_CASE(YAPPY_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = yappy_compress(in, zsize, out, size, -1);
         QUICK_COMP_CASE(LZG_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = LZG_Encode(in, zsize, out, size, NULL);
@@ -3104,7 +3214,7 @@ int perform_compression(u8 *in, int zsize, u8 **ret_out, int size, int *outsize,
             out[size] = 0;
         QUICK_COMP_CASE(BASE64_COMPRESS)
             if(!g_quickbms_dll) myalloc(&out, size = ((zsize / 3) * 4) + 6 /* zsize is ok here */, outsize);
-            size = mybase64_encode(in, zsize, out, size);
+            size = mybase64_encode(in, zsize, out, size, -1);
         QUICK_COMP_CASE(LZMA2_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = lzma2_compress(in, zsize, out, size, LZMA_FLAGS_NONE);
         QUICK_COMP_CASE(LZMA2_86HEAD_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(0); size = lzma2_compress(in, zsize, out, size, LZMA_FLAGS_86_HEADER);
         QUICK_COMP_CASE(LZMA2_86DEC_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(1); size = lzma2_compress(in, zsize, out, size, LZMA_FLAGS_86_DECODER);
@@ -3264,6 +3374,30 @@ int perform_compression(u8 *in, int zsize, u8 **ret_out, int size, int *outsize,
             tmp1 = tmp2 = tmp3 = 0;
             get_parameter_numbers(g_comtype_dictionary, &tmp1, &tmp2, &tmp3, NULL);
             size = ppmdi_compress_raw(in, zsize, out, size, tmp1, tmp2, tmp3);
+        QUICK_COMP_CASE(LUNAR_LZ1_COMPRESS)  size = lunar_compress(in, zsize, out, size, LC_LZ1,  myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ2_COMPRESS)  size = lunar_compress(in, zsize, out, size, LC_LZ2,  myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ3_COMPRESS)  size = lunar_compress(in, zsize, out, size, LC_LZ3,  myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ4_COMPRESS)  size = lunar_compress(in, zsize, out, size, LC_LZ4,  myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ5_COMPRESS)  size = lunar_compress(in, zsize, out, size, LC_LZ5,  myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ6_COMPRESS)  size = lunar_compress(in, zsize, out, size, LC_LZ6,  myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ7_COMPRESS)  size = lunar_compress(in, zsize, out, size, LC_LZ7,  myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ8_COMPRESS)  size = lunar_compress(in, zsize, out, size, LC_LZ8,  myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ9_COMPRESS)  size = lunar_compress(in, zsize, out, size, LC_LZ9,  myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ10_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_LZ10, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ11_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_LZ11, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ12_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_LZ12, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ13_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_LZ13, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ14_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_LZ14, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ15_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_LZ15, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ16_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_LZ16, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ17_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_LZ17, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ18_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_LZ18, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_LZ19_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_LZ19, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_RLE1_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_RLE1, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_RLE2_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_RLE2, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_RLE3_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_RLE3, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(LUNAR_RLE4_COMPRESS) size = lunar_compress(in, zsize, out, size, LC_RLE4, myatoi(g_comtype_dictionary));
+        QUICK_COMP_CASE(COREONLINE_COMPRESS) QUICK_COMP_COMPRESS_DEFAULT(zsize /*fake*/); size = defrogger_compress_fake(in, zsize, out);
 
         /*QUICK_COMP_CASE last break*/ break;
         default: {

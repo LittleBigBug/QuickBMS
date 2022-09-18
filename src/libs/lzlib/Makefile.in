@@ -1,6 +1,5 @@
 
 DISTNAME = $(pkgname)-$(pkgversion)
-AR = ar
 INSTALL = install
 INSTALL_PROGRAM = $(INSTALL) -m 755
 INSTALL_DATA = $(INSTALL) -m 644
@@ -9,7 +8,7 @@ LDCONFIG = /sbin/ldconfig
 SHELL = /bin/sh
 CAN_RUN_INSTALLINFO = $(SHELL) -c "install-info --version" > /dev/null 2>&1
 
-objs = carg_parser.o main.o
+objs = carg_parser.o minilzip.o
 
 
 .PHONY : all install install-bin install-info install-man \
@@ -24,27 +23,27 @@ objs = carg_parser.o main.o
 all : $(progname_static) $(progname_shared)
 
 lib$(libname).a : lzlib.o
-	$(AR) -rcs $@ $<
+	$(AR) $(ARFLAGS) $@ $<
 
 lib$(libname).so.$(pkgversion) : lzlib_sh.o
-	$(CC) $(LDFLAGS) $(CFLAGS) -fpic -fPIC -shared -Wl,--soname=lib$(libname).so.$(soversion) -o $@ $<
+	$(CC) $(CFLAGS) $(LDFLAGS) -fpic -fPIC -shared -Wl,--soname=lib$(libname).so.$(soversion) -o $@ $<
 
 $(progname) : $(objs) lib$(libname).a
-	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(objs) lib$(libname).a
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(objs) lib$(libname).a
 
 $(progname)_shared : $(objs) lib$(libname).so.$(pkgversion)
-	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ $(objs) lib$(libname).so.$(pkgversion)
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(objs) lib$(libname).so.$(pkgversion)
 
 bbexample : bbexample.o lib$(libname).a
-	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ bbexample.o lib$(libname).a
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ bbexample.o lib$(libname).a
 
 ffexample : ffexample.o lib$(libname).a
-	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ ffexample.o lib$(libname).a
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ ffexample.o lib$(libname).a
 
 lzcheck : lzcheck.o lib$(libname).a
-	$(CC) $(LDFLAGS) $(CFLAGS) -o $@ lzcheck.o lib$(libname).a
+	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ lzcheck.o lib$(libname).a
 
-main.o : main.c
+minilzip.o : minilzip.c
 	$(CC) $(CPPFLAGS) $(CFLAGS) -DPROGVERSION=\"$(pkgversion)\" -c -o $@ $<
 
 lzlib_sh.o : lzlib.c
@@ -60,7 +59,7 @@ $(objs)       : Makefile
 carg_parser.o : carg_parser.h
 lzlib.o       : Makefile $(lzdeps)
 lzlib_sh.o    : Makefile $(lzdeps)
-main.o        : carg_parser.h lzlib.h
+minilzip.o    : carg_parser.h lzlib.h
 bbexample.o   : Makefile lzlib.h
 ffexample.o   : Makefile lzlib.h
 lzcheck.o     : Makefile lzlib.h
@@ -76,7 +75,7 @@ $(VPATH)/doc/$(pkgname).info : $(VPATH)/doc/$(pkgname).texi
 man : $(VPATH)/doc/$(progname).1
 
 $(VPATH)/doc/$(progname).1 : $(progname)
-	help2man -n 'reduces the size of files' -o $@ --no-info ./$(progname)
+	help2man -n 'reduces the size of files' -o $@ --info-page=$(pkgname) ./$(progname)
 
 Makefile : $(VPATH)/configure $(VPATH)/Makefile.in
 	./config.status

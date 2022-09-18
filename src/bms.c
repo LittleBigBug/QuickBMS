@@ -1,5 +1,5 @@
 /*
-    Copyright 2009-2021 Luigi Auriemma
+    Copyright 2009-2022 Luigi Auriemma
 
     This program is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
@@ -389,7 +389,7 @@ int start_bms(int startcmd, int nop, int this_is_a_cycle, int *invoked_if, int *
             }
             case CMD_CallDLL: {
                 if(nop) break;
-                if(CMD_CallDLL_func(cmd, NULL, 0, NULL, 0) < 0) BMS_QUIT_ERROR
+                if(CMD_CallDLL_func(cmd, NULL, 0, NULL, 0, NULL) < 0) BMS_QUIT_ERROR
                 break;
             }
             case CMD_Put: {
@@ -472,6 +472,11 @@ int start_bms(int startcmd, int nop, int this_is_a_cycle, int *invoked_if, int *
             case CMD_Reimport: {
                 if(nop) break;
                 if(CMD_Reimport_func(cmd) < 0) BMS_QUIT_ERROR
+                break;
+            }
+            case CMD_CRCHash: {
+                if(nop) break;
+                if(CMD_CRCHash_func(cmd) < 0) BMS_QUIT_ERROR
                 break;
             }
             // internal
@@ -1713,7 +1718,8 @@ int parse_bms(FILE *fds, u8 *inputs, int cmd, int eol_mode) {
             c_structs_do,
             is_append   = 0,    // only for reimport, not nested ("include")
             is_append_hashing_necessary = 0,
-            include_workaround = 0;
+            include_workaround = 0,
+            script_uses_append = 0;
     u8      //*debug_line = NULL,
             *argument[MAX_ARGS + 1] = { NULL },
             *tmp,
@@ -1978,6 +1984,9 @@ redo:
         } else if(!stricmp(ARG[0], "ImpType")       && (argc >= 1)) {
             CMD.type   = CMD_ImpType;
             mystrdup(&CMD.str[0], ARG[1]);                      // type
+            for(i = 2; i <= argc; i++) {
+                CMD.var[i - 1] = parse_bms_add_var(i);
+            }
 
         } else if(!stricmp(ARG[0], "Log")           && (argc >= 3)) {
             CMD.type   = CMD_Log;
@@ -1997,7 +2006,7 @@ redo:
             // work-around for reimporting of memory files
             if((CMD.num[5] < 0) && !stricmp(ARG[2], "0")) {
                 if(
-                    //g_script_uses_append && // ttgames.bms! where is used a function to handle chunks
+                    //script_uses_append && // ttgames.bms! where is used a function to handle chunks
                     !is_append
                 ) {
                     // yes, only the latest in case of multiple "log NAME 0 SIZE MEMORY_FILE"... this is a work-around!
@@ -2527,7 +2536,7 @@ redo:
         } else if(!stricmp(ARG[0], "Append")        && (argc >= 0)) {
             CMD.type   = CMD_Append;
             if(argc >= 1) CMD.var[0] = parse_bms_add_var(1);    // direction
-            g_script_uses_append = 1;
+            script_uses_append = 1;
             is_append = !is_append; // just a work-around
 
         } else if(!stricmp(ARG[0], "Encryption")    && (argc >= 2)) {
@@ -2551,6 +2560,13 @@ redo:
             if(argc >= 5) {
                 CMD.var[4] = parse_bms_add_var(5);              // keylen
             }
+
+        } else if(!stricmp(ARG[0], "CRCHash")       && (argc >= 2)) {
+            // copy&paste from the Encryption above
+            CMD.type   = CMD_CRCHash;
+            CMD.var[0] = parse_bms_add_var(1);                  // type
+            CSTRING(1, ARG[2])                                  // algo
+            CSTRING(2, ARG[3])                                  // arguments
 
         } else if(!stricmp(ARG[0], "Print")         && (argc >= 1)) {
             CMD.type   = CMD_Print;
@@ -2778,7 +2794,13 @@ redo:
 
         } else if(!stricmp(ARG[0], "reimport") && (argc >= 0)) {
             CMD.type   = CMD_Reimport;
-            if(argc >= 1) CMD.var[0] = parse_bms_add_var(1);    // type
+            //if(argc >= 1) CMD.var[0] = parse_bms_add_var(1);    // type
+
+            // let's make it compatible with the new experimental behavior of imptype
+            // in this way doesn't matter if the user gets confused
+            for(i = 1; i <= argc; i++) {
+                CMD.var[i - 1] = parse_bms_add_var(i);
+            }
 
         } else if(
             (   !stricmp(ARG[0], "ReadByte")   || !stricmp(ARG[0], "ReadDouble") || !stricmp(ARG[0], "ReadFloat")  ||
@@ -2873,9 +2895,13 @@ redo:
         myexit(QUICKBMS_ERROR_BMS);
     }
 
-    if(g_script_uses_append && !is_append_hashing_necessary) {
-        if(!include_workaround) g_script_uses_append = 0;
+    // there was a bug with "encryption calldll + log + append + log" caused by
+    // parse_bms called for quickbms_calldll_pipe that disabled g_script_uses_append
+    // resulting in quickbms asking multiple times to overwrite the file
+    if(script_uses_append && !is_append_hashing_necessary) {
+        if(!include_workaround) script_uses_append = 0;
     }
+    if(script_uses_append) g_script_uses_append = script_uses_append;
     return(cmd);
 }
 
@@ -2913,6 +2939,7 @@ void bms_init(int reinit) {
         g_comtype_dictionary_len= 0;
         g_comtype_scan          = 0;
         g_encrypt_mode          = 0;
+        g_crchash_mode          = 0;
         g_append_mode           = APPEND_MODE_NONE;
         g_temporary_file_used   = 0;
         g_mex_default           = 0;
@@ -2928,6 +2955,7 @@ void bms_init(int reinit) {
         if(!g_ipc_web_api) g_replace_fdnum0 = 0;    // it's mandatory in web api, it may cause problems with some rare scripts
         if(g_debug_output) g_debug_output->level = 0;
         g_slog_id               = 0;
+        g_reimport_crc          = -1;
 
     if(g_mex_default) {
         g_mex_default_init(0);
@@ -2964,7 +2992,7 @@ void bms_init(int reinit) {
     }
     */
 
-    CMD_CallDLL_func(-1, NULL, 0, NULL, 0);
+    CMD_CallDLL_func(-1, NULL, 0, NULL, 0, NULL);
 
     if(reinit) return;
 
@@ -2979,8 +3007,8 @@ void bms_init(int reinit) {
     memset(g_command,     0, sizeof(command_t) * (MAX_CMDS + 1));
     for(i = 0; i < MAX_CMDS; i++) {
         for(j = 0; j < MAX_ARGS; j++) {
-            g_command[i].var[j] = -0x7fffff;  // helps a bit to identify errors in QuickBMS, DO NOT MODIFY IT! NEVER! (it's used in places like check_condition)
-            g_command[i].num[j] = -0x7fffff;  // helps a bit to identify errors in QuickBMS
+            g_command[i].var[j] = QUICKBMS_RESET_VARNUM;    // helps a bit to identify errors in QuickBMS, DO NOT MODIFY IT! NEVER! (it's used in places like check_condition)
+            g_command[i].num[j] = QUICKBMS_RESET_VARNUM;    // helps a bit to identify errors in QuickBMS
             // do NOT touch g_command[i].str[j]
         }
     }

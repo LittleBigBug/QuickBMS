@@ -57,31 +57,31 @@ typedef unsigned int   Uint;
 
 /* グローバル変数の定義 */
 #define  HEADER_SIZE 4
-char file_header[HEADER_SIZE] = "BPE2";
-char file_ext[] = ".bpe2";
-char input_fname[FILENAME_MAX];
-char output_fname[FILENAME_MAX];
-int  mode;      /* 'e':encode 'd':decode */
+static char file_header[HEADER_SIZE] = "BPE2";
+static char file_ext[] = ".bpe2";
+static char input_fname[FILENAME_MAX];
+static char output_fname[FILENAME_MAX];
+static int  mode;      /* 'e':encode 'd':decode */
 
-FILE *infp, *outfp;      /* 入力ファイル, 出力ファイル */
+static FILE *infp, *outfp;      /* 入力ファイル, 出力ファイル */
 
 #define TRUE    1
 #define FALSE   0
 #define BUFMIN  128
 #define BUFMAX  32511         /* 0x7eff */
-int bufsize = 4096;           /* データ作業領域のサイズ */
+static int bufsize = 4096;           /* データ作業領域のサイズ */
 
-Uchar  ptsize;                /* ペア表の大きさ */
-Uchar  ptbuf[256*3];          /* 符号化用ペア表バッファ */
+static Uchar  ptsize;                /* ペア表の大きさ */
+static Uchar  ptbuf[256*3];          /* 符号化用ペア表バッファ */
 
-Uchar  pairtable1[256];       /* 一時的ペア表(1番目の文字) 符号化モードでは文字が使われているかどうかの判定用 */
-Uchar  pairtable2[256];       /* 一時的ペア表(2番目の文字) */
+static Uchar  pairtable1[256];       /* 一時的ペア表(1番目の文字) 符号化モードでは文字が使われているかどうかの判定用 */
+static Uchar  pairtable2[256];       /* 一時的ペア表(2番目の文字) */
 
-Uchar  srcbuf[BUFMAX + 16];   /* 元のデータのバッファ */
-Uchar  workbuf[BUFMAX + 16];  /* 圧縮データのバッファ */
-Ushort *paircount;            /* ペア出現用カウンタ(mallocで領域確保する, 符号化モードのみ使用) */
-int    ob_count = 0;          /* *outbuf[] を使っている数 */
-Uchar  *outbuf[256];          /* データ出力用バッファメモリ(mallocで領域確保する, 符号化モードのみ使用) */
+static Uchar  srcbuf[BUFMAX + 16];   /* 元のデータのバッファ */
+static Uchar  workbuf[BUFMAX + 16];  /* 圧縮データのバッファ */
+static Ushort *paircount;            /* ペア出現用カウンタ(mallocで領域確保する, 符号化モードのみ使用) */
+static int    ob_count = 0;          /* *outbuf[] を使っている数 */
+static Uchar  *outbuf[256];          /* データ出力用バッファメモリ(mallocで領域確保する, 符号化モードのみ使用) */
 
 /*--------------------------------------------------------*/
 /*    復号処理                                            */

@@ -61,15 +61,15 @@ static node *nodebuf    = NULL;
 static node *nodemaxp   = NULL;
 static node *nodesptr   = NULL;
 
-void preset(){
+static void preset(){
    p = &nodes[0][0];
 }
 
-float predict(){
+static float predict(){
    return   p->count[0] / (p->count[0] + p->count[1]);
 }
 
-void pflush(){
+static void pflush(){
    int i,j;
    for (j=0;j<256;j++){
       for (i=0;i<127;i++) {
@@ -88,7 +88,7 @@ void pflush(){
    nodesptr = nodebuf;
    preset();
 }
-int pinit(memsize)
+static int pinit(memsize)
    int memsize;
 {
    //fprintf(stderr,"using %d bytes of predictor memory\n",memsize);
@@ -102,7 +102,7 @@ int pinit(memsize)
    return(0);
 }
 
-void pupdate(b)
+static void pupdate(b)
    int b;
 {
    float r;

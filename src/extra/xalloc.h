@@ -37,6 +37,7 @@
     /*static*/ int XDBG_ALLOC_INDEX     = 1;    // use linked lists (must be enabled!)
     /*static*/ int XDBG_ALLOC_VERBOSE   = 0;    // debug information
     /*static*/ int XDBG_HEAPVALIDATE    = 0;    // time consuming!
+    /*extern*/ int xdbg_return_NULL_on_error = 0;
 #else
     extern void *(*real_malloc)(size_t size);
     extern void *(*real_calloc)(size_t nelem, size_t elsize);
@@ -47,6 +48,7 @@
     extern int XDBG_ALLOC_INDEX;            // use linked lists (must be enabled!)
     extern int XDBG_ALLOC_VERBOSE;          // debug information
     extern int XDBG_HEAPVALIDATE;           // time consuming!
+    extern int xdbg_return_NULL_on_error;
 #endif
 
 

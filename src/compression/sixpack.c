@@ -74,7 +74,7 @@ static int output_bit_buffer = 0;         /* Output buffer */
 static long bytes_in = 0, bytes_out = 0;  /* File size counters */
 
 /* Write one bit to output file */
-void output_bit(output,bit)
+static void output_bit(output,bit)
   FILE *output;
   int bit;
 {
@@ -88,7 +88,7 @@ void output_bit(output,bit)
 }
 
 /* Read a bit from input file */
-int input_bit(input)
+static int input_bit(input)
   FILE *input;
 {
   int bit;
@@ -108,7 +108,7 @@ int input_bit(input)
 }
 
 /* Write multibit code to output file */
-void output_code(output,code,bits)
+static void output_code(output,code,bits)
   FILE *output;
   int code,bits;
 {
@@ -121,7 +121,7 @@ void output_code(output,code,bits)
 }
 
 /* Read multibit code from input file */
-int input_code(input,bits)
+static int input_code(input,bits)
   FILE *input;
   int bits;
 {
@@ -135,7 +135,7 @@ int input_code(input,bits)
 }
 
 /* Flush any remaining bits to output file before closing file */
-void flush_bits(output)
+static void flush_bits(output)
   FILE *output;
 {
   if (output_bit_count > 0) {
@@ -150,7 +150,7 @@ void flush_bits(output)
    to Data Compression", Communications of the ACM 8/88 */
 
 /* Initialize data for compression or decompression */
-void initialize()
+static void initialize()
 {
   int i, j;
 
@@ -176,7 +176,7 @@ void initialize()
 }
 
 /* Update frequency counts from leaf to root */
-void update_freq(a,b)
+static void update_freq(a,b)
   int a,b;
 {
   do {
@@ -195,7 +195,7 @@ void update_freq(a,b)
 }
 
 /* Update Huffman model for each character code */
-void update_model(code)
+static void update_model(code)
   int code;
 {
   int a, b, c, ua, uua;
@@ -229,7 +229,7 @@ void update_model(code)
 }
 
 /* Compress a character code to output stream */
-void sixpack_compress(output,code)
+static void sixpack_compress(output,code)
   FILE *output;
   int code;
 {
@@ -248,7 +248,7 @@ void sixpack_compress(output,code)
 }
 
 /* Uncompress a character code from input stream */
-int sixpack_uncompress(input)
+static int sixpack_uncompress(input)
   FILE *input;
 {
   int a = ROOT;
@@ -264,7 +264,7 @@ int sixpack_uncompress(input)
 /*** Hash table linked list string search routines ***/
 
 /* Add node to head of list */
-void add_node(n)  
+static void add_node(n)  
   int n;
 {
   int key;
@@ -282,7 +282,7 @@ void add_node(n)
 }
 
 /* Delete node from tail of list */
-void delete_node(n)
+static void delete_node(n)
   int n;
 {
   int key;
@@ -297,7 +297,7 @@ void delete_node(n)
 }
 
 /* Find longest string matching lookahead buffer string */
-int match(n,depth)
+static int match(n,depth)
   int n,depth;
 {
   int i, j, index, key, dist, len, best = 0, count = 0;
@@ -337,7 +337,7 @@ int match(n,depth)
 
 /* Check first buffer for ordered dictionary file */
 /* Better compression using short distance copies */
-void dictionary()
+static void dictionary()
 {
   int i = 0, j = 0, k, count = 0;
 
@@ -354,7 +354,7 @@ void dictionary()
 }
 
 /* Decode file from input to output */
-int decode(input,output)
+static int decode(input,output)
   FILE *input,*output;
 {
   int c, i, j, k, dist, len, n = 0, index;

@@ -106,6 +106,7 @@ enum {
     CMD_Continue,
     CMD_Label,
     CMD_Reimport,
+    CMD_CRCHash,        // unused, just a placeholder for the future
     CMD_If_Return,      // internal usage
     CMD_DirectoryExists,
     CMD_FEof,
@@ -274,7 +275,8 @@ typedef struct {
 typedef struct {
     u_int   offset;     // offsets are u_int because quickbms is limited to 32bit, quickbms_4gb_files doesn't have this limit
     i32     fd;
-    i32     type;
+    i32     type;       // BMS_TYPE_...
+    i32     size;       // valid only for bits and strings: number of bits and length of the string
     i32     math_ops;   // history of operations
     i32     math_op   [MAX_REIMPORT_MATH_OPS];  // i32 necessary for -1000
     int     math_value[MAX_REIMPORT_MATH_OPS];
@@ -542,8 +544,7 @@ u32             *mpq_ctx        = NULL;
 u32             *rc6_ctx        = NULL;
 xor_prev_next_context *xor_prev_next_ctx = NULL;
 typedef struct {
-    void    *openssl_rsa_private;
-    void    *openssl_rsa_public;
+    void    *openssl_rsa;
 #ifndef DISABLE_TOMCRYPT
     rsa_key tomcrypt_rsa;
 #endif
@@ -669,6 +670,7 @@ int     g_last_cmd                  = 0,
         g_comtype_dictionary_len    = 0,
         g_comtype_scan              = 0,
         g_encrypt_mode              = 0,
+        g_crchash_mode              = 0,
         g_append_mode               = APPEND_MODE_NONE,
         g_temporary_file_used       = 0,
         g_quickbms_version          = 0,
@@ -704,6 +706,7 @@ int     g_last_cmd                  = 0,
         g_force_utf16               = 0,    // currently used only in slog
         g_log_filler_char           = -1,
         g_slog_id                   = 0,
+        g_reimport_crc              = -1,
         g_c_structs_allowed         = 0;
         //g_min_int                   = 1 << ((sizeof(int) << 3) - 1),
         //g_max_int                   = (u_int)(1 << ((sizeof(int) << 3) - 1)) - 1;
