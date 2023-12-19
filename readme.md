@@ -1,3 +1,5 @@
+[**Original Site Cache**](http://web.archive.org/web/20231127160802/https://aluigi.altervista.org/quickbms.htm)
+
 ###################################################################
 
 
